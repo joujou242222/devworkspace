@@ -1,0 +1,335 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+// Load dynamic header (name, initials, notifications, logout)
+if (H.loadHeader) {
+  H.loadHeader();
+}
+
+var activeOrgId = auth ? auth.activeOrgId : null;
+var rawMembers = [];
+var rawInvitations = [];
+var lastMembersRes = null;
+
+function formatRole(r) {
+  if (!r) return '';
+  return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
+}
+
+function getInitials(name, email) {
+  if (name) {
+    var parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    if (parts[0]) return parts[0].slice(0, 2).toUpperCase();
+  }
+  return (email || '??').slice(0, 2).toUpperCase();
+}
+
+async function loadTeam() {
+  if (!activeOrgId) return;
+  try {
+    var teEl = $('te');
+    if (teEl) teEl.hidden = true;
+
+    // 1. Fetch team members
+    var mRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/team') : api.get('/organizations/' + activeOrgId + '/team?limit=100'));
+    rawMembers = mRes.items || [];
+    lastMembersRes = mRes;
+
+    // 2. Fetch invitations
+    var iRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/invitations') : api.get('/organizations/' + activeOrgId + '/invitations?limit=100'));
+    rawInvitations = (iRes.items || []).filter(function(x) { return x.state === 'PENDING'; });
+
+    renderMembers();
+    renderInvitations();
+  } catch (err) {
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) {
+      return;
+    }
+    var te = $('te');
+    if (te) {
+      if (err.status === 403) {
+        te.textContent = err.message || 'Organization administrator required.';
+      } else {
+        te.textContent = err.message || 'An error occurred.';
+      }
+      te.hidden = false;
+    }
+    var inv = $('inv');
+    if (inv && err.status === 403) {
+      inv.hidden = true;
+      inv.style.display = 'none';
+    }
+  }
+}
+
+function renderMembers() {
+  var mb = $('mb');
+  if (!mb) return;
+
+  var curPrincipalId = (auth && auth.getActivePrincipal) ? auth.getActivePrincipal()?.id : null;
+  var curEmail = (auth && auth.user) ? (auth.user.email || '').toLowerCase() : '';
+  var myMember = rawMembers.find(function(m) {
+    return (curPrincipalId && m.id === curPrincipalId) || (curEmail && (m.email || '').toLowerCase() === curEmail);
+  });
+  var isOwner = myMember ? myMember.role === 'OWNER' : true;
+  var isAdmin = myMember ? myMember.role === 'ADMIN' : false;
+
+  mb.innerHTML = rawMembers.map(function(m) {
+    var initials = getInitials(m.name, m.email);
+    var displayName = m.name || m.email.split('@')[0];
+    var isActive = m.status === 'ACTIVE';
+    var roleFormatted = formatRole(m.role);
+    var targetIsOwner = m.role === 'OWNER';
+
+    // Controls a user can never use must be disabled
+    // Admins cannot change an Owner's role; only active members can be edited
+    var canEdit = isActive && (isOwner || (isAdmin && !targetIsOwner));
+    var allowedRoles = isOwner ? ['Owner', 'Admin', 'Member'] : ['Admin', 'Member'];
+
+    return '<tr data-id="' + esc(m.id) + '" data-revision="' + m.revision + '">' +
+      '<td><div class="who"><span class="av">' + esc(initials) + '</span><div>' + esc(displayName) + '<small>' + esc(m.email) + '</small></div></div></td>' +
+      '<td><select class="sel" data-id="' + esc(m.id) + '" data-revision="' + m.revision + '" aria-label="Role for ' + esc(displayName) + '"' + (canEdit ? '' : ' disabled') + '>' +
+      (targetIsOwner && !allowedRoles.includes('Owner') ? '<option selected>Owner</option>' : '') +
+      allowedRoles.map(function(r) {
+        return '<option' + (r === roleFormatted ? ' selected' : '') + '>' + r + '</option>';
+      }).join('') +
+      '</select></td>' +
+      '<td><span class="tag' + (isActive ? '' : ' no') + '">' + (isActive ? 'Active' : 'Suspended') + '</span></td>' +
+      '</tr>';
+  }).join('');
+
+  // Wire role change selects
+  mb.querySelectorAll('select.sel[data-id]').forEach(function(s) {
+    s.onchange = async function() {
+      var id = s.dataset.id;
+      var rev = parseInt(s.dataset.revision, 10);
+      var m = rawMembers.find(function(x) { return x.id === id; });
+      if (!m) return;
+      var newRole = s.value.toUpperCase();
+      if (newRole === m.role) return;
+
+      // Guard: At least 1 active Owner must remain
+      if (m.role === 'OWNER' && newRole !== 'OWNER') {
+        var activeOwners = rawMembers.filter(function(x) { return x.role === 'OWNER' && x.status === 'ACTIVE'; });
+        if (activeOwners.length <= 1) {
+          s.value = formatRole(m.role);
+          var te = $('te');
+          if (te) {
+            te.textContent = 'At least one owner is required. Make someone else an owner first.';
+            te.hidden = false;
+          }
+          return;
+        }
+      }
+
+      var isSelf = (curPrincipalId && m.id === curPrincipalId) || (curEmail && (m.email || '').toLowerCase() === curEmail);
+
+      // Privilege revocation confirmation dialogs
+      if (isSelf) {
+        var confirmedSelf = await (H.askConfirm ? H.askConfirm(
+          'Changing your own role will sign you out immediately. You will need to sign in again to continue.',
+          { title: 'Sign out and change role?', confirmText: 'Change role and sign out', danger: true }
+        ) : Promise.resolve(window.confirm('Changing your own role will sign you out immediately. You will need to sign in again to continue.')));
+
+        if (!confirmedSelf) {
+          s.value = formatRole(m.role);
+          return;
+        }
+      } else {
+        var confirmedOther = await (H.askConfirm ? H.askConfirm(
+          'Changing this member’s role will immediately sign them out of all active sessions.',
+          { title: 'Change role?', confirmText: 'Change role', danger: true }
+        ) : Promise.resolve(window.confirm('Changing this member’s role will immediately sign them out of all active sessions.')));
+
+        if (!confirmedOther) {
+          s.value = formatRole(m.role);
+          return;
+        }
+      }
+
+      s.disabled = true;
+      try {
+        var teEl = $('te');
+        if (teEl) teEl.hidden = true;
+
+        await api.patch('/organizations/' + activeOrgId + '/team/' + id, {
+          role: newRole,
+          status: m.status
+        }, { revision: rev });
+
+        if (isSelf) {
+          window.location.href = '/login?notice=session_ended';
+          return;
+        }
+
+        await loadTeam();
+      } catch (err) {
+        s.value = formatRole(m.role);
+        var teErr = $('te');
+        if (teErr) {
+          if (err.code === 'OWNER_REQUIRED') {
+            teErr.textContent = 'Only an Owner manages ownership.';
+          } else if (err.code === 'LAST_OWNER') {
+            teErr.textContent = 'At least one owner is required. Make someone else an owner first.';
+          } else if (err.code === 'IDENTITY_UNAVAILABLE') {
+            teErr.textContent = 'Owner must be an active verified member.';
+          } else if (err.code === 'REAUTHENTICATE') {
+            var reauthHtml = H.formatReauthMessage ? H.formatReauthMessage('change an owner’s role') :
+              ('For security, <a class="lnk" href="/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search) + '">sign in again</a> to change an owner’s role.');
+            teErr.innerHTML = reauthHtml;
+          } else if (err.status === 403) {
+            teErr.textContent = err.message || 'You do not have permission to perform this action.';
+          } else {
+            teErr.textContent = err.message || 'An error occurred.';
+          }
+          teErr.hidden = false;
+        }
+      } finally {
+        s.disabled = m.status !== 'ACTIVE';
+      }
+    };
+  });
+}
+
+function renderInvitations() {
+  var iv = $('iv');
+  var ie = $('ie');
+  if (!iv) return;
+
+  if (rawInvitations.length === 0) {
+    if (ie) ie.hidden = false;
+    iv.innerHTML = '';
+    return;
+  }
+
+  if (ie) ie.hidden = true;
+  iv.innerHTML = rawInvitations.map(function(inv) {
+    var expiresText = inv.expiresAt ? H.formatRelativeTime(inv.expiresAt) : '—';
+    var roleFormatted = formatRole(inv.role);
+
+    return '<tr data-id="' + esc(inv.id) + '" data-revision="' + inv.revision + '">' +
+      '<td>' + esc(inv.email) + '</td>' +
+      '<td>' + esc(roleFormatted) + '</td>' +
+      '<td>' + esc(expiresText) + '</td>' +
+      '<td><button class="btn sm red" data-c="' + esc(inv.id) + '" data-revision="' + inv.revision + '">Cancel</button></td>' +
+      '</tr>';
+  }).join('');
+
+  // Wire cancel buttons
+  iv.querySelectorAll('button[data-c]').forEach(function(b) {
+    b.onclick = async function(e) {
+      e.preventDefault();
+      var id = b.dataset.c;
+      var rev = parseInt(b.dataset.revision, 10);
+      var inv = rawInvitations.find(function(x) { return x.id === id; });
+      if (!inv) return;
+
+      var confirmed = await (H.askConfirm ? H.askConfirm(
+        'Cancel invitation for ' + inv.email + '?',
+        { title: 'Cancel invitation?', confirmText: 'Cancel invitation', danger: true }
+      ) : Promise.resolve(window.confirm('Cancel invitation for ' + inv.email + '?')));
+
+      if (!confirmed) return;
+
+      b.disabled = true;
+      try {
+        var teEl = $('te');
+        if (teEl) teEl.hidden = true;
+
+        await api.delete('/organizations/' + activeOrgId + '/invitations/' + id, { revision: rev });
+        await loadTeam();
+      } catch (err) {
+        b.disabled = false;
+        H.handleErrorBanner(err, { bannerId: 'te' });
+      }
+    };
+  });
+}
+
+// Modal handling
+var invBtn = $('inv');
+if (invBtn) {
+  invBtn.onclick = function() {
+    var derr = $('derr');
+    if (derr) {
+      derr.hidden = true;
+      derr.textContent = '';
+    }
+    var dg = $('dg');
+    if (dg && dg.showModal) dg.showModal();
+  };
+}
+
+var cxBtn = $('cx');
+if (cxBtn) {
+  cxBtn.onclick = function() {
+    var dg = $('dg');
+    if (dg) dg.close();
+  };
+}
+
+var df = $('df');
+if (df) {
+  df.noValidate = true;
+  df.onsubmit = async function(e) {
+    e.preventDefault();
+    var email = $('ie2') ? $('ie2').value.trim() : '';
+    var role = $('ir') ? $('ir').value.toUpperCase() : 'MEMBER';
+    var derr = $('derr');
+
+    if (!email) {
+      if (derr) { derr.textContent = 'Enter an email address.'; derr.hidden = false; }
+      return;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      if (derr) { derr.textContent = 'Enter a valid email address.'; derr.hidden = false; }
+      return;
+    }
+
+    // Local duplicate checks
+    var lo = email.toLowerCase();
+    if (rawMembers.some(function(m) { return (m.email || '').toLowerCase() === lo; })) {
+      if (derr) { derr.textContent = email + ' is already on the team.'; derr.hidden = false; }
+      return;
+    }
+    if (rawInvitations.some(function(inv) { return (inv.email || '').toLowerCase() === lo; })) {
+      if (derr) { derr.textContent = 'There’s already a pending invitation for ' + email + '.'; derr.hidden = false; }
+      return;
+    }
+
+    try {
+      await api.post('/organizations/' + activeOrgId + '/invitations', {
+        email: email,
+        role: role
+      });
+
+      var dg = $('dg');
+      if (dg) dg.close();
+      if ($('ie2')) $('ie2').value = '';
+      if ($('ir')) $('ir').value = 'Member';
+
+      await loadTeam();
+    } catch (err) {
+      if (err.status === 409 && err.code === 'MEMBER_EXISTS') {
+        if (derr) { derr.textContent = email + ' is already on the team.'; derr.hidden = false; }
+      } else {
+        H.handleErrorBanner(err, { dialogErrElId: 'derr', bannerId: 'te' });
+      }
+    }
+  };
+}
+
+loadTeam();

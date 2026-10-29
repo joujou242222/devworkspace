@@ -1,0 +1,446 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var currentUser = null;
+var prefRevision = null;
+var imageRevision = 1;
+var currentImage = null;
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function renderUserAvatar(imgRef) {
+  var av = $('av');
+  var u = document.querySelector('.util a.ib');
+  var headerAv = u ? u.querySelector('.av') : null;
+
+  var nm = currentUser ? (currentUser.name || '') : '';
+  var parts = nm.trim().split(/\s+/);
+  var ini = parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : (nm ? nm.slice(0, 2).toUpperCase() : 'U');
+
+  if (imgRef && imgRef.asset_id) {
+    var imgUrl = '/api/v1/me/image/content?v=' + encodeURIComponent(imgRef.asset_id) + '&t=' + Date.now();
+    if (av) {
+      av.style.backgroundImage = 'url("' + imgUrl + '")';
+      av.style.backgroundSize = 'cover';
+      av.style.backgroundPosition = 'center';
+      av.textContent = '';
+    }
+    if (headerAv) {
+      headerAv.style.backgroundImage = 'url("' + imgUrl + '")';
+      headerAv.style.backgroundSize = 'cover';
+      headerAv.style.backgroundPosition = 'center';
+      headerAv.textContent = '';
+    }
+  } else {
+    if (av) {
+      av.style.backgroundImage = '';
+      av.textContent = ini;
+    }
+    if (headerAv) {
+      headerAv.style.backgroundImage = '';
+      headerAv.textContent = ini;
+    }
+  }
+}
+
+function updateInitials(name) {
+  var nm = name || '';
+  var parts = nm.trim().split(/\s+/);
+  var ini = parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : (nm ? nm.slice(0, 2).toUpperCase() : 'U');
+
+  if (!currentImage || !currentImage.asset_id) {
+    var av = $('av');
+    if (av) {
+      av.style.backgroundImage = '';
+      av.textContent = ini;
+    }
+    var u = document.querySelector('.util a.ib');
+    if (u) {
+      var a = u.querySelector('.av');
+      if (a) {
+        a.style.backgroundImage = '';
+        a.textContent = ini;
+      }
+    }
+  }
+
+  var u = document.querySelector('.util a.ib');
+  if (u && u.lastChild && u.lastChild.nodeType === 3) {
+    u.lastChild.textContent = ' ' + (parts[0] || nm);
+  }
+}
+
+async function loadImage() {
+  try {
+    currentImage = await api.get('/me/image');
+    imageRevision = currentImage ? (currentImage.revision || 1) : 1;
+    renderUserAvatar(currentImage);
+  } catch (err) {
+    console.error('Failed to load profile image:', err);
+  }
+}
+
+// 1. Profile Display Name
+async function loadProfile() {
+  try {
+    currentUser = await api.get('/me');
+    var dn = $('dn');
+    if (dn) dn.value = currentUser.name || '';
+    updateInitials(currentUser.name);
+  } catch (err) {
+    console.error('Failed to load user profile:', err);
+  }
+}
+
+var sv = $('sv');
+if (sv) {
+  sv.onclick = async function() {
+    var dn = $('dn');
+    var ps = $('ps');
+    if (!dn || !ps) return;
+
+    var name = dn.value.trim();
+    if (!name) {
+      ps.textContent = 'Display name can’t be empty.';
+      ps.className = 'msg err mg';
+      ps.hidden = false;
+      return;
+    }
+
+    sv.disabled = true;
+    try {
+      await api.patch('/me', { name: name }, { revision: currentUser.revision });
+      currentUser.name = name;
+      currentUser.revision = (currentUser.revision || 1) + 1;
+      updateInitials(name);
+      ps.className = 'msg mg';
+      ps.textContent = 'Profile saved.';
+      ps.hidden = false;
+    } catch (err) {
+      ps.className = 'msg err mg';
+      if (err.status === 412 || err.code === 'STALE_REVISION') {
+        ps.textContent = 'Profile was modified in another session. Refreshing…';
+        await loadProfile();
+      } else {
+        ps.textContent = err.message || 'Failed to save profile.';
+      }
+      ps.hidden = false;
+    } finally {
+      sv.disabled = false;
+    }
+  };
+}
+
+// 2. Change Password
+var pw = $('pw');
+if (pw) {
+  pw.onclick = async function() {
+    var o = $('o');
+    var n1 = $('n1');
+    var n2 = $('n2');
+    var pe = $('pe');
+    var po = $('po');
+    if (!o || !n1 || !n2 || !pe || !po) return;
+
+    po.hidden = true;
+    pe.hidden = true;
+    pe.innerHTML = '';
+
+    var curPass = o.value;
+    var newPass = n1.value;
+    var confPass = n2.value;
+
+    if (!curPass) {
+      pe.textContent = 'Enter your current password.';
+      pe.hidden = false;
+      return;
+    }
+    if (newPass.length < 8) {
+      pe.textContent = 'Use at least 8 characters.';
+      pe.hidden = false;
+      return;
+    }
+    if (newPass !== confPass) {
+      pe.textContent = 'Passwords don’t match.';
+      pe.hidden = false;
+      return;
+    }
+
+    pw.disabled = true;
+    try {
+      await api.post('/me/password', {
+        currentPassword: curPass,
+        newPassword: newPass
+      });
+      po.textContent = 'Password updated.';
+      po.hidden = false;
+      o.value = '';
+      n1.value = '';
+      n2.value = '';
+    } catch (err) {
+      if (err.status === 403 || err.code === 'REAUTHENTICATE') {
+        if (H && H.formatReauthMessage) {
+          pe.innerHTML = H.formatReauthMessage('change your password');
+        } else {
+          pe.textContent = 'For security, please sign in again to change your password.';
+        }
+      } else if (err.status === 401 || err.code === 'AUTH_FAILED') {
+        pe.textContent = 'Current password is incorrect.';
+      } else {
+        pe.textContent = err.message || 'Failed to update password.';
+      }
+      pe.hidden = false;
+    } finally {
+      pw.disabled = false;
+    }
+  };
+}
+
+// 3. Sessions
+function parseDevice(ua) {
+  if (!ua) return 'Unknown device';
+  var browser = '';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+
+  var os = '';
+  if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Macintosh|Mac OS/i.test(ua)) os = 'macOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+
+  if (browser && os) return browser + ' on ' + os;
+  if (browser) return browser;
+  if (os) return os;
+  return 'Unknown device';
+}
+
+async function loadSessions() {
+  var ss = $('ss');
+  if (!ss) return;
+
+  try {
+    var res = await api.get('/me/sessions');
+    var list = Array.isArray(res) ? res : (Array.isArray(res?.items) ? res.items : []);
+
+    // Sort current session first, then most recent
+    list.sort(function(a, b) {
+      if (a.current && !b.current) return -1;
+      if (!a.current && b.current) return 1;
+      var tA = new Date(a.lastActivityAt || a.last_activity_at || a.createdAt || a.created_at || 0);
+      var tB = new Date(b.lastActivityAt || b.last_activity_at || b.createdAt || b.created_at || 0);
+      return tB - tA;
+    });
+
+    ss.innerHTML = list.map(function(s) {
+      var isCurrent = !!s.current;
+      var rawUa = s.userAgent || s.user_agent;
+      var deviceName = parseDevice(rawUa);
+      var device = isCurrent ? (deviceName + ' <span class="tag">This device</span>') : deviceName;
+      var ip = s.ipAddress || s.ip_address || '—';
+      var lastAct = s.lastActivityAt || s.last_activity_at || s.createdAt || s.created_at;
+      var lastUsed = lastAct ? (H && H.formatRelativeTime ? H.formatRelativeTime(lastAct) : lastAct) : 'Now';
+
+      var endBtn = isCurrent
+        ? '<button class="btn sm" disabled title="You can’t end your current session">End</button>'
+        : '<button class="btn sm red" data-e data-id="' + esc(s.id) + '">End</button>';
+
+      return '<tr data-id="' + esc(s.id) + '">' +
+        '<td>' + device + '</td>' +
+        '<td>' + esc(ip) + '</td>' +
+        '<td>' + esc(lastUsed) + '</td>' +
+        '<td>' + endBtn + '</td>' +
+        '</tr>';
+    }).join('');
+
+    ss.querySelectorAll('button[data-e]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var sessId = btn.dataset.id;
+        if (!sessId) return;
+
+        var confirmed = await (H && H.askConfirm ? H.askConfirm(
+          'End this session?',
+          { title: 'End session?', confirmText: 'End session', danger: true }
+        ) : Promise.resolve(window.confirm('End this session?')));
+
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        try {
+          await api.delete('/me/sessions/' + sessId);
+          await loadSessions();
+        } catch (err) {
+          btn.disabled = false;
+          console.error('Failed to revoke session:', err);
+        }
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load sessions:', err);
+  }
+}
+
+// 4. Notification Preferences
+async function loadPrefs() {
+  try {
+    var prefs = await api.get('/me/notification-preferences');
+    prefRevision = prefs?.revision || 1;
+
+    var a1 = $('a1');
+    var a2 = $('a2');
+    var a3 = $('a3');
+
+    if (a1) a1.checked = !!prefs.discussions_documents;
+    if (a2) a2.checked = !!prefs.reviews;
+    if (a3) a3.checked = !!prefs.assignments;
+    if (a1) a1.dataset.loaded = 'true';
+
+    var savePref = async function() {
+      try {
+        var body = {
+          discussions_documents: a1 ? a1.checked : false,
+          reviews: a2 ? a2.checked : false,
+          assignments: a3 ? a3.checked : false
+        };
+        var updated = await api.patch('/me/notification-preferences', body, { revision: prefRevision });
+        if (updated && updated.revision) {
+          prefRevision = updated.revision;
+        }
+      } catch (err) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          await loadPrefs();
+        } else {
+          console.error('Failed to save notification preferences:', err);
+        }
+      }
+    };
+
+    [a1, a2, a3].forEach(function(input) {
+      if (input) input.onchange = savePref;
+    });
+  } catch (err) {
+    console.error('Failed to load notification preferences:', err);
+  }
+}
+
+// 5. Photo upload and removal
+var pv = $('pv');
+var rm = $('rm');
+var up = $('up');
+var ie = $('ie');
+
+if (up) {
+  up.onchange = async function() {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+
+    if (ie) {
+      ie.hidden = true;
+      ie.textContent = 'This image was rejected. Use a JPG or PNG under 2 MB.';
+    }
+
+    try {
+      var uploadRecord = await H.uploadMedia(file, '/me/image/uploads', function(statusText) {
+        if (pv) pv.textContent = statusText;
+      });
+
+      if (pv) pv.textContent = 'Saving…';
+
+      var saved = await api.patch('/me/image', { asset_id: uploadRecord.asset_id || uploadRecord.id }, { revision: imageRevision });
+      imageRevision = saved.revision || (imageRevision + 1);
+      currentImage = { asset_id: uploadRecord.asset_id || uploadRecord.id, revision: imageRevision };
+      renderUserAvatar(currentImage);
+
+      if (pv) pv.textContent = '';
+    } catch (err) {
+      if (pv) pv.textContent = '';
+      if (ie) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          ie.textContent = 'Image changed in another session. Refreshing…';
+          await loadImage();
+        } else if (err.code === 'SCANNER_UNAVAILABLE') {
+          ie.textContent = "We couldn't process this file right now. Try again later.";
+        } else {
+          ie.textContent = err.message || 'This image was rejected. Use a JPG or PNG under 2 MB.';
+        }
+        ie.hidden = false;
+      }
+    }
+  };
+}
+
+if (rm) {
+  rm.onclick = async function() {
+    if (ie) {
+      ie.hidden = true;
+      ie.textContent = 'This image was rejected. Use a JPG or PNG under 2 MB.';
+    }
+
+    if (!currentImage || !currentImage.asset_id) {
+      if (pv) pv.textContent = '';
+      return;
+    }
+
+    rm.disabled = true;
+    if (pv) pv.textContent = 'Removing…';
+
+    try {
+      var saved = await api.patch('/me/image', { asset_id: null }, { revision: imageRevision });
+      imageRevision = saved.revision || (imageRevision + 1);
+      currentImage = { asset_id: null, revision: imageRevision };
+      renderUserAvatar(null);
+      if (pv) pv.textContent = '';
+    } catch (err) {
+      if (pv) pv.textContent = '';
+      if (ie) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          ie.textContent = 'Image changed in another session. Refreshing…';
+          await loadImage();
+        } else {
+          ie.textContent = err.message || 'Failed to remove photo.';
+        }
+        ie.hidden = false;
+      }
+    } finally {
+      rm.disabled = false;
+    }
+  };
+}
+
+// Initial bootstrap
+async function initAccount() {
+  await auth.init();
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+  await Promise.all([
+    loadProfile(),
+    loadImage(),
+    loadSessions(),
+    loadPrefs()
+  ]);
+}
+
+initAccount();

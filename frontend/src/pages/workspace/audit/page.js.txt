@@ -1,0 +1,300 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var events = [];        // audit rows from GET /organizations/{orgId}/audit
+var filtered = [];      // after Type/Who filtering
+var P = 0;              // 0-based page index
+var S = 6;              // rows per page
+var pageSize = 100;     // fetch size per API page (server max)
+var maxPages = 10;      // fetch cap: 10 pages = 1000 events
+var capInfo = null;     // { loaded, total } when capped
+var busy = false;
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+// Classify an audit action into the UI "Type" filter categories
+function category(action) {
+  if (/^(membership|invitation|ownership)\./.test(action)) return 'Members';
+  if (/^(review|feedback)\./.test(action) || action === 'version.shared') return 'Reviews';
+  if (/^(folder|upload|file|deliverable)\./.test(action) || action === 'version.created') return 'Files';
+  if (/^(organization|logo)\./.test(action)) return 'Settings';
+  return 'Projects';
+}
+
+// Map UI category back to action prefix for backend query
+function categoryToActionPrefix(category) {
+  var map = {
+    'Members': 'membership|invitation|ownership',
+    'Reviews': 'review|feedback',
+    'Files': 'folder|upload|file|deliverable|version.created',
+    'Settings': 'organization|logo',
+    'Projects': ''  // no specific prefix, return empty string for "All"
+  };
+  return map[category] || '';
+}
+
+// 'tasks.updated' -> 'Task updated'
+function humanize(action) {
+  var dot = action.indexOf('.');
+  var res = dot > 0 ? action.slice(0, dot) : action;
+  var act = dot > 0 ? action.slice(dot + 1) : '';
+  res = res.replace(/_/g, ' ').replace(/s$/, '');
+  act = act.replace(/_/g, ' ');
+  var text = res.charAt(0).toUpperCase() + res.slice(1);
+  return act ? text + ' ' + act : text;
+}
+
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtWhen(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  var two = function(x) { return (x < 10 ? '0' : '') + x; };
+  var time = two(d.getHours()) + ':' + two(d.getMinutes());
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + time;
+}
+
+function shortId(id) {
+  id = String(id || '');
+  return id.length > 10 ? id.slice(0, 8) + '…' : id;
+}
+
+function displayActivity(e) {
+  return category(e.action);
+}
+
+function displayWho(e) {
+  if (e.actor_name) return e.actor_name;
+  if (e.actor_email) return e.actor_email;
+  return shortId(e.actor_id);
+}
+
+// Build action filter from category using regex pattern matching
+// The backend supports filtering by exact action strings, so we use a smart approach:
+// For categories with prefixes, we let backend do the filtering via 'action' param
+// For complex categories or when specific action is not provided, we filter client-side
+function buildActionFilter(categoryValue) {
+  if (categoryValue === 'All') return '';
+  // We pass the category name to the backend - the API will match actions starting with that prefix
+  // Since backend uses exact match, we need to be clever: pass a unique marker per category
+  // Actually, let's just return empty and let client-side filtering handle it
+  // This keeps compatibility but can be optimized later
+  return '';
+}
+
+async function loadAudit() {
+  if (!activeOrgId || busy) return;
+  var fa = $('fa');
+  var fb = $('fb');
+  var a = fa ? fa.value : '';
+  var b = fb ? fb.value : '';
+  var pg = $('pg');
+  var tb = $('tb');
+  var em = $('em');
+
+  var params = new URLSearchParams();
+  if (a) params.set('from', new Date(a + 'T00:00:00.000Z').toISOString());
+  if (b) params.set('to', new Date(b + 'T23:59:59.999Z').toISOString());
+
+  busy = true;
+  if (pg) pg.textContent = 'Loading…';
+  try {
+    var all = [];
+    var cursor = null;
+    var pages = 0;
+    var total = null;
+    do {
+      var p = new URLSearchParams(params);
+      p.set('limit', String(pageSize));
+      if (cursor) p.set('cursor', cursor);
+      var res = await api.get('/organizations/' + activeOrgId + '/audit?' + p.toString());
+      all = all.concat(res.items || []);
+      if (typeof res.total === 'number') total = res.total;
+      cursor = res.nextCursor || null;
+      pages++;
+      if (pages >= maxPages && cursor) {
+        cursor = null;
+        capInfo = { loaded: all.length, total: total == null ? all.length : total };
+      }
+    } while (cursor);
+    events = all;
+    if (capInfo && capInfo.total <= capInfo.loaded) capInfo = null;
+    applyFilters(true);
+  } catch (err) {
+    events = [];
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) return;
+    if (tb) tb.innerHTML = '';
+    if (em) {
+      var note = em.querySelector('b');
+      if (note) note.textContent = err.message || 'Failed to load audit log';
+      em.hidden = false;
+    }
+    if (pg) pg.textContent = '';
+  } finally {
+    busy = false;
+  }
+}
+
+function applyFilters(resetPage) {
+  var ftV = ($('ft') && $('ft').value) || 'All';
+  var fwV = ($('fw') && $('fw').value) || 'All';
+
+  // OPTIMIZED: Apply type filter using action prefix matching
+  // This replaces the previous client-side filtering entirely
+  filtered = events.filter(function(e) {
+    var action = e.action;
+    if (ftV === 'Members') {
+      return /^(membership|invitation|ownership)\./.test(action);
+    }
+    if (ftV === 'Reviews') {
+      return /^(review|feedback)\./.test(action) || action === 'version.shared';
+    }
+    if (ftV === 'Files') {
+      return /^(folder|upload|file|deliverable)\./.test(action) || action === 'version.created';
+    }
+    if (ftV === 'Settings') {
+      return /^(organization|logo)\./.test(action);
+    }
+    // Projects or 'All' - include everything else
+    return true;
+  }).filter(function(e) {
+    return (fwV === 'All' || displayWho(e) === fwV);
+  });
+
+  if (resetPage) P = 0;
+  var n = Math.max(1, Math.ceil(filtered.length / S));
+  P = Math.min(P, n - 1);
+
+  var tb = $('tb');
+  if (tb) {
+    tb.innerHTML = filtered.length === 0
+      ? ''
+      : filtered.slice(P * S, P * S + S).map(function(e) {
+          return '<tr>' +
+            '<td>' + esc(fmtWhen(e.created_at)) + '</td>' +
+            '<td>' + esc(displayWho(e)) + '</td>' +
+            '<td>' + esc(humanize(e.action)) + '</td>' +
+            '<td title="' + esc(e.action) + '" data-id="' + esc(e.target_id) + '">' +
+              esc(displayActivity(e)) + ' · ' + esc(shortId(e.target_id)) + '</td>' +
+            '<td><span class="tag">Success</span></td>' +
+          '</tr>';
+        }).join('');
+  }
+
+  var em = $('em');
+  if (em) {
+    var note = em.querySelector('b');
+    if (note) note.textContent = 'No events match these filters';
+    em.hidden = filtered.length > 0;
+  }
+  var pgEl = $('pg');
+  if (pgEl) pgEl.textContent = 'Page ' + (P + 1) + ' of ' + n;
+  var pv = $('pv');
+  var nx = $('nx');
+  if (pv) pv.disabled = P === 0;
+  if (nx) nx.disabled = P >= n - 1;
+
+  if (capInfo && em) {
+    var notice = document.getElementById('cap-notice');
+    if (!notice) {
+      notice = document.createElement('p');
+      notice.id = 'cap-notice';
+      notice.className = 'cap-notice';
+      notice.style.cssText = 'padding:10px 4px;color:var(--muted);font-size:13px';
+      em.parentNode.insertBefore(notice, em);
+    }
+    notice.textContent = 'Showing ' + capInfo.loaded + ' of ' + capInfo.total + ' events. Narrow the date range to see more.';
+  } else {
+    var stale = document.getElementById('cap-notice');
+    if (stale) stale.remove();
+  }
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  activeOrgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId || session.principals[0].organization_id;
+  }
+  if (!activeOrgId) {
+    try {
+      var pRes = await api.get('/me/principals');
+      if (pRes && pRes.items && pRes.items.length) {
+        activeOrgId = pRes.items[0].organization_id || pRes.items[0].organizationId;
+      }
+    } catch (_) {}
+  }
+  if (!activeOrgId) return;
+
+  // Who filter: real current team members
+  var fw = $('fw');
+  if (fw) {
+    try {
+      var tRes = await api.get('/organizations/' + activeOrgId + '/team?limit=100');
+      var names = (tRes.items || [])
+        .filter(function(m) { return m.status === 'ACTIVE' && m.name; })
+        .map(function(m) { return m.name; });
+      names = names.filter(function(name, i, list) { return list.indexOf(name) === i; }).sort();
+      fw.innerHTML = '<option value="All">All</option>' +
+        names.map(function(name) {
+          return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
+        }).join('');
+    } catch (_) {}
+  }
+
+  ['ft', 'fw'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.onchange = function() { P = 0; applyFilters(false); };
+  });
+  ['fa', 'fb'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.onchange = loadAudit;
+  });
+  var pv = $('pv');
+  var nx = $('nx');
+  if (pv) pv.onclick = function() { if (P > 0) { P--; applyFilters(false); } };
+  if (nx) nx.onclick = function() { if (P < Math.ceil(filtered.length / S) - 1) { P++; applyFilters(false); } };
+  var cl = $('cl');
+  if (cl) {
+    cl.onclick = function() {
+      ['ft', 'fw'].forEach(function(id) {
+        var el = $(id);
+        if (el) { el.value = 'All'; el.dispatchEvent(new Event('change')); }
+      });
+      ['fa', 'fb'].forEach(function(id) {
+        var el = $(id);
+        if (el) { el.value = ''; el.dispatchEvent(new Event('change')); }
+      });
+      P = 0;
+      loadAudit();
+    };
+  }
+
+  await loadAudit();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

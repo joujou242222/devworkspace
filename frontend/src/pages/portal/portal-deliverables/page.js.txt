@@ -1,0 +1,244 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activePrincipalId = null;
+var activeProjectId = null;
+var clientPrincipals = [];
+var projectOverview = null;
+var sharedVersions = [];
+var notifications = [];
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function renderNotifications() {
+  var bd = $('bd');
+  var dl = $('dl');
+  var bell = $('bell');
+  var dr = $('dr');
+  if (!bell || !dr) return;
+
+  var unread = notifications.filter(function(n) { return !n.read_at; }).length;
+  if (bd) bd.style.display = unread > 0 ? '' : 'none';
+
+  bell.onclick = function() {
+    dr.hidden = !dr.hidden;
+    bell.setAttribute('aria-expanded', String(!dr.hidden));
+  };
+
+  if (dl) {
+    if (notifications.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = notifications.map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var dr = $('dr');
+  var bell = $('bell');
+  if (dr && bell && !dr.hidden && !e.target.closest('#dr,#bell')) {
+    dr.hidden = true;
+    bell.setAttribute('aria-expanded', 'false');
+  }
+});
+
+function showStatus(text) {
+  var m = $('say');
+  var sub = document.querySelector('.pm .sub');
+  if (!m && sub) {
+    m = document.createElement('div');
+    m.id = 'say';
+    m.className = 'msg mg';
+    m.setAttribute('role', 'status');
+    sub.after(m);
+  }
+  if (m) {
+    m.textContent = text + '…';
+    m.hidden = false;
+    clearTimeout(window.__t);
+    window.__t = setTimeout(function() { m.hidden = true; }, 3000);
+  }
+}
+
+function render() {
+  var mn = $('mn');
+  if (!mn) return;
+
+  var wsSelect = $('ws');
+  var currentOrgName = (wsSelect && wsSelect.options[wsSelect.selectedIndex]) ? wsSelect.options[wsSelect.selectedIndex].text : 'Studio';
+  var projectName = (projectOverview && projectOverview.name) ? projectOverview.name : 'Project';
+
+  var h = window.location.hash;
+  var withdrawnNotice = h === '#withdrawn'
+    ? '<div class="msg err mg" role="alert">' + esc(currentOrgName) + ' stopped sharing a version, so it’s no longer listed.</div>'
+    : '';
+
+  var versionsHtml = '';
+  if (sharedVersions.length === 0) {
+    versionsHtml = '<p class="empty"><b>Nothing shared yet</b>When ' + esc(currentOrgName) + ' shares a version, it shows up here.</p>';
+  } else {
+    versionsHtml = sharedVersions.map(function(v) {
+      var isUnderReview = v.review_status === 'OPEN';
+      var isApproved = v.review_status === 'APPROVED';
+      var isChangesReq = v.review_status === 'CHANGES_REQUESTED';
+
+      var statusText = 'v' + v.version_number + ' · Not under review';
+      var statusClass = 'st';
+      if (isUnderReview) {
+        statusText = 'v' + v.version_number + ' · Under review';
+      } else if (isApproved) {
+        statusText = 'v' + v.version_number + ' · Approved';
+        statusClass = 'st ok';
+      } else if (isChangesReq) {
+        statusText = 'v' + v.version_number + ' · Changes requested';
+      }
+
+      var dateStr = v.created_at ? (H.formatDate ? H.formatDate(v.created_at) : v.created_at.slice(0, 10)) : 'Recently';
+      var fileTitle = v.title || 'Deliverable';
+
+      var actionBtns = '';
+      if (isUnderReview && v.review_id) {
+        actionBtns = '<a class="btn lime sm" href="/portal/portal-review?id=' + encodeURIComponent(activeProjectId) + '&review=' + encodeURIComponent(v.review_id) + '">Open review</a>';
+      } else {
+        var previewUrl = '/api/v1/organizations/' + encodeURIComponent(activeOrgId) + '/portal/projects/' + encodeURIComponent(activeProjectId) + '/versions/' + encodeURIComponent(v.id) + '/preview/1';
+        actionBtns = '<a class="btn sm" target="_blank" href="' + previewUrl + '" data-msg="Preview of version ' + esc(v.version_number) + '">Preview</a>';
+      }
+
+      var downloadUrl = '/api/v1/organizations/' + encodeURIComponent(activeOrgId) + '/portal/projects/' + encodeURIComponent(activeProjectId) + '/versions/' + encodeURIComponent(v.id) + '/download';
+      actionBtns += ' <a class="btn sm" href="' + downloadUrl + '" download data-msg="Downloading version ' + esc(v.version_number) + '">Download</a>';
+
+      return '<div class="vr' + (isUnderReview ? ' cur' : '') + '">' +
+        '<div><b style="font-weight:500">Version ' + esc(v.version_number) + ' · ' + esc(fileTitle) + '</b><br>' +
+        '<small style="color:var(--muted)">Shared ' + esc(dateStr) + '</small><br>' +
+        '<span class="' + statusClass + '">' + esc(statusText) + '</span>' +
+        (isUnderReview ? ' <small>This is the one being reviewed now.</small>' : '') +
+        '</div>' +
+        '<div class="row2">' + actionBtns + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  mn.innerHTML = '<p style="margin-bottom:10px"><a class="lnk" href="/portal/portal-project?id=' + encodeURIComponent(activeProjectId) + '">&larr; ' + esc(projectName) + '</a></p>' +
+    '<h1>Deliverables</h1>' +
+    '<p class="sub">Only versions ' + esc(currentOrgName) + ' shared with you. Each decision belongs to its own version.</p>' +
+    withdrawnNotice +
+    versionsHtml;
+
+  mn.querySelectorAll('[data-msg]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      showStatus(el.getAttribute('data-msg'));
+    });
+  });
+}
+
+async function loadData() {
+  if (!activeOrgId || !activeProjectId) return;
+
+  // 1. Fetch project overview
+  try {
+    projectOverview = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId);
+  } catch (err) {
+    console.error('Failed to load portal project overview:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'mn')) return;
+  }
+
+  // 2. Fetch shared versions
+  try {
+    var vRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/versions?limit=50');
+    sharedVersions = vRes.items || (Array.isArray(vRes) ? vRes : []);
+    sharedVersions.sort(function(a, b) {
+      return (Number(b.version_number) || 0) - (Number(a.version_number) || 0);
+    });
+  } catch (err) {
+    console.error('Failed to load shared versions:', err);
+  }
+
+  // 3. Fetch notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=8');
+    notifications = nRes.items || (Array.isArray(nRes) ? nRes : []);
+    renderNotifications();
+  } catch (_) {}
+
+  render();
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = (auth.getClientPrincipals ? auth.getClientPrincipals() : []) || [];
+  activeOrgId = auth.getActiveOrgId();
+  activePrincipalId = auth.getActivePrincipalId();
+
+  // Populate workspace selector
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(p) {
+      var name = p.name || p.organization_name || ('Studio ' + (p.organization_id || '').slice(0, 4));
+      var sel = (p.id === activePrincipalId || p.organization_id === activeOrgId) ? ' selected' : '';
+      return '<option value="' + esc(p.id) + '" data-org="' + esc(p.organization_id) + '"' + sel + '>' + esc(name) + '</option>';
+    }).join('');
+
+    ws.onchange = async function() {
+      var opt = ws.options[ws.selectedIndex];
+      var pid = opt ? opt.value : null;
+      if (pid && pid !== activePrincipalId) {
+        $('mn').innerHTML = '<p class="empty">Switching workspace…</p>';
+        await auth.switchPrincipal(pid);
+        window.location.href = '/portal/portal-projects';
+      }
+    };
+  }
+
+  // Check URL param ?id=
+  var urlParams = new URLSearchParams(window.location.search);
+  activeProjectId = urlParams.get('id');
+
+  if (!activeProjectId) {
+    try {
+      var pRes = await api.get('/organizations/' + activeOrgId + '/portal/projects?limit=1');
+      var pItems = pRes.items || (Array.isArray(pRes) ? pRes : []);
+      if (pItems.length > 0) {
+        activeProjectId = pItems[0].id;
+      }
+    } catch (_) {}
+  }
+
+  if (!activeProjectId) {
+    $('mn').innerHTML = '<h1>Deliverables</h1><p class="empty">No project selected.</p>';
+    return;
+  }
+
+  await loadData();
+}
+
+init();

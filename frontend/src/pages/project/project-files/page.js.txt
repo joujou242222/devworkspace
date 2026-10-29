@@ -1,0 +1,637 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var isManager = false;
+var canUpload = false;
+
+var folders = [];
+var files = [];
+var curFolder = null; // null for root, or folder UUID
+var inFlightUploads = [];
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function askText(title, val, cb) {
+  var d = document.createElement('dialog');
+  var id = 'at' + Date.now();
+  d.innerHTML = '<form method="dialog"><h2>' + esc(title) + '</h2><div class="fld" style="margin-top:16px"><label for="' + id + '">Name</label><input id="' + id + '" type="text"></div><div class="row2" style="margin-top:16px"><button class="btn lime" type="submit">Save</button><button class="btn" type="button" data-n>Cancel</button></div></form>';
+  document.body.appendChild(d);
+  var i = d.querySelector('input');
+  i.value = val;
+  d.querySelector('[data-n]').onclick = function() { d.close(); };
+  d.querySelector('form').onsubmit = function(e) {
+    var v = i.value.trim();
+    if (!v) {
+      e.preventDefault();
+      i.focus();
+      return;
+    }
+    cb(v);
+  };
+  d.addEventListener('close', function() { d.remove(); });
+  d.showModal();
+  i.select();
+}
+
+function askConfirm(msg, cb) {
+  var d = document.createElement('dialog');
+  d.innerHTML = '<form method="dialog"><h2>Please confirm</h2><p style="margin-top:12px">' + esc(msg) + '</p><div class="row2" style="margin-top:16px"><button class="btn lime" type="submit">Confirm</button><button class="btn" type="button" data-n>Cancel</button></div></form>';
+  document.body.appendChild(d);
+  d.querySelector('[data-n]').onclick = function() { d.close(); };
+  d.querySelector('form').onsubmit = function() { cb(); };
+  d.addEventListener('close', function() { d.remove(); });
+  d.showModal();
+}
+
+function updateTabs() {
+  var tabs = document.querySelector('.ptabs');
+  if (tabs && activeProjectId) {
+    tabs.querySelectorAll('a').forEach(function(a) {
+      var href = a.getAttribute('href');
+      if (href && href.indexOf('?') === -1 && href.indexOf('/workspace/') === -1) {
+        a.setAttribute('href', href + '?project=' + encodeURIComponent(activeProjectId));
+      }
+    });
+  }
+}
+
+function updateProjectHeader(p, clientName) {
+  var top = document.querySelector('.top');
+  if (!top || !p) return;
+  var statusLabel = p.status ? p.status.charAt(0) + p.status.slice(1).toLowerCase() : 'Active';
+  top.innerHTML = '<div><h1>' + esc(p.name) + '</h1><p>' + esc(clientName || 'Client') + ' · <span class="tag">' + esc(statusLabel) + '</span></p></div>';
+}
+
+function formatBytes(bytes) {
+  if (!bytes || isNaN(bytes)) return '—';
+  var mb = bytes / (1024 * 1024);
+  return mb >= 0.1 ? mb.toFixed(1) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
+}
+
+function renderPath() {
+  var pa = $('pa');
+  if (!pa) return;
+  if (!curFolder) {
+    pa.innerHTML = '<b>Files</b>';
+  } else {
+    var f = folders.find(function(x) { return x.id === curFolder; });
+    var fName = f ? f.name : 'Folder';
+    pa.innerHTML = '<a class="lnk" href="#" id="up">Files</a> / <b>' + esc(fName) + '</b>';
+    var up = $('up');
+    if (up) {
+      up.onclick = function(e) {
+        e.preventDefault();
+        curFolder = null;
+        loadFiles();
+      };
+    }
+  }
+}
+
+function renderFolders() {
+  var fo = $('fo');
+  if (!fo) return;
+  if (curFolder) {
+    fo.innerHTML = '';
+    return;
+  }
+  fo.innerHTML = folders.map(function(f) {
+    var delBtn = isManager ? ' <button class="link" data-x2="' + esc(f.id) + '" aria-label="Delete folder ' + esc(f.name) + '" style="background:none;border:0;cursor:pointer">×</button>' : '';
+    return '<span class="tag"><a href="#" class="lnk" data-f="' + esc(f.id) + '">' + esc(f.name) + '</a>' + delBtn + '</span>';
+  }).join('');
+
+  // Wire folder open links
+  fo.querySelectorAll('a[data-f]').forEach(function(a) {
+    a.onclick = function(e) {
+      e.preventDefault();
+      curFolder = a.dataset.f;
+      loadFiles();
+    };
+  });
+
+  // Wire folder delete buttons
+  fo.querySelectorAll('button[data-x2]').forEach(function(b) {
+    b.onclick = async function(e) {
+      e.preventDefault();
+      var fId = b.dataset.x2;
+      var f = folders.find(function(x) { return x.id === fId; });
+      var fName = f ? f.name : 'Folder';
+
+      try {
+        await api.delete(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/folders/' + fId,
+          { headers: { 'If-Match': '"' + (f ? f.revision : 1) + '"' } }
+        );
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+        await loadFolders();
+      } catch (err) {
+        var ce = $('ce');
+        if (ce) {
+          if (err.status === 409 || (err.message && err.message.includes('not empty'))) {
+            ce.textContent = '“' + fName + '” has files in it. Move or archive them before deleting the folder.';
+          } else {
+            ce.textContent = err.message || 'Failed to delete folder.';
+          }
+          ce.hidden = false;
+        }
+      }
+    };
+  });
+}
+
+function renderFiles() {
+  var tb = $('tb');
+  var em = $('em');
+  var qInput = $('q');
+  var qVal = qInput ? qInput.value.trim().toLowerCase() : '';
+
+  var activeInFlight = inFlightUploads.filter(function(u) {
+    return u.folder_id === (curFolder || null);
+  });
+
+  var filteredFiles = files.filter(function(f) {
+    if (qVal && f.title.toLowerCase().indexOf(qVal) === -1) return false;
+    return true;
+  });
+
+  if (em) {
+    em.hidden = (filteredFiles.length > 0 || activeInFlight.length > 0);
+  }
+
+  if (!tb) return;
+
+  var inFlightHtml = activeInFlight.map(function(u) {
+    var stClass = u.status === 'Ready' ? 'ok' : (u.status === 'Rejected' || u.status === 'Failed' ? 'bad' : '');
+    return '<tr>' +
+      '<td>' + esc(u.name) + '</td>' +
+      '<td>' + formatBytes(u.size) + '</td>' +
+      '<td>—</td>' +
+      '<td>0</td>' +
+      '<td><span class="st ' + stClass + '">' + esc(u.status) + '</span></td>' +
+      '<td><div class="row2"><button class="btn sm" disabled title="Not available until the file is scanned and ready">Download</button></div></td>' +
+      '</tr>';
+  }).join('');
+
+  var filesHtml = filteredFiles.map(function(f) {
+    var sizeText = formatBytes(f.expected_size || f.byte_size || f.size);
+    var vText = f.version_number ? 'v' + f.version_number : '—';
+    var attCount = f.attachment_count || 0;
+
+    var moveOptions = '<option value="">Files</option>' + folders.map(function(fol) {
+      var sel = f.folder_id === fol.id ? ' selected' : '';
+      return '<option value="' + esc(fol.id) + '"' + sel + '>' + esc(fol.name) + '</option>';
+    }).join('');
+
+    var actionsHtml = '<div class="row2">' +
+      '<button class="btn sm" data-dl="' + esc(f.id) + '" data-asset="' + esc(f.asset_id) + '">Download</button>';
+
+    if (isManager) {
+      actionsHtml += '<button class="btn sm" data-rn="' + esc(f.id) + '">Rename</button>' +
+        '<select class="sel" style="height:34px" data-mv="' + esc(f.id) + '" aria-label="Move file"><option value="" disabled>Move to…</option>' + moveOptions + '</select>' +
+        '<button class="btn sm red" data-ar="' + esc(f.id) + '">Archive</button>';
+    }
+
+    actionsHtml += '</div>';
+
+    return '<tr data-id="' + esc(f.id) + '">' +
+      '<td>' + esc(f.title) + '</td>' +
+      '<td>' + sizeText + '</td>' +
+      '<td>' + esc(vText) + '</td>' +
+      '<td>' + attCount + '</td>' +
+      '<td><span class="st ok">Ready</span></td>' +
+      '<td>' + actionsHtml + '</td>' +
+      '</tr>';
+  }).join('');
+
+  tb.innerHTML = inFlightHtml + filesHtml;
+
+  // Wire Download buttons
+  tb.querySelectorAll('button[data-dl]').forEach(function(btn) {
+    btn.onclick = async function() {
+      var assetId = btn.dataset.asset;
+      var fileId = btn.dataset.dl;
+      var f = files.find(function(x) { return x.id === fileId; });
+      var title = f ? f.title : 'file';
+
+      var okMsg = $('ok');
+      if (okMsg) {
+        okMsg.textContent = 'Downloading “' + title + '”…';
+        okMsg.hidden = false;
+        setTimeout(function() { okMsg.hidden = true; }, 3000);
+      }
+
+      try {
+        var dlUrl = '/api/v1/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/assets/' + assetId + '/download';
+        window.open(dlUrl, '_blank');
+      } catch (err) {
+        console.error('Download error:', err);
+      }
+    };
+  });
+
+  // Wire Rename buttons
+  tb.querySelectorAll('button[data-rn]').forEach(function(btn) {
+    btn.onclick = function() {
+      var fileId = btn.dataset.rn;
+      var f = files.find(function(x) { return x.id === fileId; });
+      if (!f) return;
+
+      askText('Rename file', f.title, async function(newTitle) {
+        try {
+          await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/files/' + fileId,
+            {
+              title: newTitle,
+              folder_id: f.folder_id || null,
+              status: f.status || 'ACTIVE'
+            },
+            { headers: { 'If-Match': '"' + f.revision + '"' } }
+          );
+          await loadFiles();
+        } catch (err) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = err.message || 'Failed to rename file.';
+            ce.hidden = false;
+          }
+        }
+      });
+    };
+  });
+
+  // Wire Move dropdowns
+  tb.querySelectorAll('select[data-mv]').forEach(function(sel) {
+    sel.onchange = async function() {
+      var fileId = sel.dataset.mv;
+      var f = files.find(function(x) { return x.id === fileId; });
+      if (!f) return;
+
+      var targetFolderId = sel.value || null;
+      try {
+        await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/files/' + fileId,
+          {
+            title: f.title,
+            folder_id: targetFolderId,
+            status: f.status || 'ACTIVE'
+          },
+          { headers: { 'If-Match': '"' + f.revision + '"' } }
+        );
+        await loadFiles();
+      } catch (err) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = err.message || 'Failed to move file.';
+          ce.hidden = false;
+        }
+      }
+    };
+  });
+
+  // Wire Archive buttons
+  tb.querySelectorAll('button[data-ar]').forEach(function(btn) {
+    btn.onclick = function() {
+      var fileId = btn.dataset.ar;
+      var f = files.find(function(x) { return x.id === fileId; });
+      if (!f) return;
+
+      askConfirm('Are you sure you want to archive “' + f.title + '”? It will no longer appear in active file listings.', async function() {
+        try {
+          await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/files/' + fileId,
+            {
+              title: f.title,
+              folder_id: f.folder_id || null,
+              status: 'ARCHIVED'
+            },
+            { headers: { 'If-Match': '"' + f.revision + '"' } }
+          );
+          await loadFiles();
+        } catch (err) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = err.message || 'Failed to archive file.';
+            ce.hidden = false;
+          }
+        }
+      });
+    };
+  });
+}
+
+async function loadFolders() {
+  if (!activeOrgId || !activeProjectId) return;
+  try {
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/folders') : api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/folders?limit=100'));
+    folders = res.items || [];
+    renderPath();
+    renderFolders();
+  } catch (err) {
+    console.error('Failed to load folders:', err);
+  }
+}
+
+async function loadFiles() {
+  if (!activeOrgId || !activeProjectId) return;
+  renderPath();
+  renderFolders();
+
+  var folderParam = curFolder ? curFolder : 'root';
+  try {
+    var basePath = '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/files';
+    var res = await (H.fetchAllPages ? H.fetchAllPages(basePath, { folder_id: folderParam, status: 'ACTIVE' }) : api.get(basePath + '?folder_id=' + encodeURIComponent(folderParam) + '&status=ACTIVE&limit=100'));
+    files = res.items || [];
+    renderFiles();
+  } catch (err) {
+    console.error('Failed to load files:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) return;
+  }
+}
+
+async function handleFileUpload(file) {
+  if (!file) return;
+  var ce = $('ce');
+  if (ce) ce.hidden = true;
+
+  // Validate MIME and size (max 25 MiB)
+  var allowedMimes = ['image/png', 'image/jpeg', 'application/pdf'];
+  var mime = file.type;
+  if (!mime) {
+    var ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'png') mime = 'image/png';
+    else if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+    else if (ext === 'pdf') mime = 'application/pdf';
+  }
+
+  if (!allowedMimes.includes(mime)) {
+    if (ce) {
+      ce.textContent = 'Only PNG, JPG, or PDF files are supported.';
+      ce.hidden = false;
+    }
+    return;
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    if (ce) {
+      ce.textContent = 'Files must be 25 MB or smaller.';
+      ce.hidden = false;
+    }
+    return;
+  }
+
+  var uploadRecord = {
+    id: 'inflight-' + Date.now(),
+    name: file.name,
+    size: file.size,
+    folder_id: curFolder || null,
+    status: 'Uploading'
+  };
+
+  inFlightUploads.push(uploadRecord);
+  renderFiles();
+
+  try {
+    // 1. Calculate digest
+    var arrayBuffer = await file.arrayBuffer();
+    var hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    var hashArray = Array.from(new Uint8Array(hashBuffer));
+    var digest = hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+    // 2. Intent
+    var intent = await api.post(
+      '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads',
+      {
+        name: file.name,
+        purpose: 'PROJECT_FILE',
+        folder_id: curFolder || null,
+        size: file.size,
+        digest: digest,
+        mime: mime
+      }
+    );
+
+    uploadRecord.status = 'Scanning';
+    renderFiles();
+
+    // 3. PUT binary to staging
+    var capUrl = new URL(intent.capability.url);
+    var stagingPath = capUrl.pathname + capUrl.search;
+    var putHeaders = {
+      'content-length': String(file.size),
+      'content-type': mime,
+      ...(intent.capability.headers || {})
+    };
+    delete putHeaders['host'];
+    delete putHeaders['Host'];
+
+    var stagingRes = await fetch(stagingPath, {
+      method: 'PUT',
+      headers: putHeaders,
+      body: arrayBuffer
+    });
+
+    if (!stagingRes.ok && stagingRes.status !== 204) {
+      throw new Error('Upload to staging failed');
+    }
+
+    // 4. Finalize
+    await api.post(
+      '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads/' + intent.id + '/finalize',
+      {}
+    );
+
+    // 5. Poll until READY
+    var start = Date.now();
+    var ready = false;
+    while (Date.now() - start < 60000) {
+      await new Promise(function(r) { setTimeout(r, 1000); });
+      var poll = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads/' + intent.id);
+      if (poll.status === 'READY') {
+        ready = true;
+        break;
+      }
+      if (poll.status === 'REJECTED' || poll.status === 'FAILED') {
+        uploadRecord.status = poll.status === 'REJECTED' ? 'Rejected' : 'Failed';
+        renderFiles();
+        if (ce) {
+          ce.textContent = 'This file was rejected by the scanner.';
+          ce.hidden = false;
+        }
+        return;
+      }
+    }
+
+    if (ready) {
+      // Remove from inFlightUploads and refresh files
+      inFlightUploads = inFlightUploads.filter(function(x) { return x.id !== uploadRecord.id; });
+      await loadFiles();
+    }
+  } catch (err) {
+    console.error('File upload error:', err);
+    uploadRecord.status = 'Failed';
+    renderFiles();
+    if (ce) {
+      ce.textContent = err.message || 'File upload failed.';
+      ce.hidden = false;
+    }
+  }
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  activeOrgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId || session.principals[0].organization_id;
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  activeProjectId = params.get('project') || params.get('id');
+
+  if (!activeProjectId) {
+    var pRes = await api.get('/organizations/' + activeOrgId + '/projects?limit=1');
+    if (pRes && pRes.items && pRes.items.length) {
+      activeProjectId = pRes.items[0].id;
+    }
+  }
+
+  if (!activeProjectId) return;
+  updateTabs();
+
+  // Load project details
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+    var clientName = 'Client';
+    if (currentProject && currentProject.client_id) {
+      try {
+        var clientObj = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+        if (clientObj) clientName = clientObj.name;
+      } catch (_) {}
+    }
+    updateProjectHeader(currentProject, clientName);
+  } catch (err) {
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) return;
+  }
+
+  // Load project role
+  try {
+    var membersRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members?limit=100');
+    var members = membersRes.items || [];
+    var principalId = session.principals ? session.principals[0].id : null;
+    var myMembership = members.find(function(m) { return m.membership_id === principalId; });
+    var role = myMembership ? myMembership.role : null;
+    var orgRole = session.principals ? session.principals[0].role : null;
+
+    isManager = role === 'MANAGER' || orgRole === 'OWNER' || orgRole === 'ADMIN';
+    canUpload = isManager || role === 'CONTRIBUTOR';
+
+    var uploadLabel = document.querySelector('label[for=fu]');
+    var newFolderBtn = $('nf');
+    if (!canUpload && uploadLabel) uploadLabel.style.display = 'none';
+    if (!isManager && newFolderBtn) newFolderBtn.style.display = 'none';
+  } catch (_) {}
+
+  // Search input
+  var qInput = $('q');
+  if (qInput) qInput.oninput = renderFiles;
+
+  // New folder dialog
+  var nfBtn = $('nf');
+  var dg = $('dg');
+  var dgf = $('dgf');
+  var derr = $('derr');
+  var fnInput = $('fn');
+
+  if (nfBtn && dg) {
+    nfBtn.onclick = function() {
+      if (derr) derr.hidden = true;
+      if (fnInput) fnInput.value = '';
+      dg.showModal();
+    };
+  }
+
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var d = b.closest('dialog');
+      if (d) d.close();
+    };
+  });
+
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      var n = fnInput ? fnInput.value.trim() : '';
+      if (!n) {
+        if (derr) {
+          derr.textContent = 'Give the folder a name.';
+          derr.hidden = false;
+        }
+        return;
+      }
+
+      if (folders.some(function(x) { return x.name.toLowerCase() === n.toLowerCase(); })) {
+        if (derr) {
+          derr.textContent = 'A folder named “' + n + '” already exists.';
+          derr.hidden = false;
+        }
+        return;
+      }
+
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/folders',
+          { name: n, position: folders.length + 1 }
+        );
+        if (dg) dg.close();
+        await loadFolders();
+      } catch (err) {
+        if (derr) {
+          derr.textContent = err.message || 'Failed to create folder.';
+          derr.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Upload file input
+  var fu = $('fu');
+  if (fu) {
+    fu.onchange = function() {
+      var f = this.files[0];
+      this.value = '';
+      if (f) handleFileUpload(f);
+    };
+  }
+
+  await loadFolders();
+  await loadFiles();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

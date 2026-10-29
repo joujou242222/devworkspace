@@ -1,0 +1,410 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var currentRole = 'VIEWER';
+var isManager = false;
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? principal.organizationId : null;
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) {
+      H.renderNotAvailableState('app', 'This project is not available.');
+    }
+    return;
+  }
+
+  // Bind collapse toggle
+  var tog = $('tog');
+  if (tog) {
+    tog.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Cancel buttons on dialogs
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var dlg = b.closest('dialog');
+      if (dlg) dlg.close();
+    };
+  });
+
+  await loadProject();
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+    if (!currentProject) {
+      if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+      return;
+    }
+
+    // Determine role & permissions
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+      currentRole = 'MANAGER';
+    } else {
+      try {
+        var mRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+        var myMembership = (mRes.items || []).find(function(m) {
+          return m.membership_id === (principal ? principal.id : '');
+        });
+        currentRole = myMembership ? myMembership.role : 'VIEWER';
+        isManager = currentRole === 'MANAGER';
+      } catch (_) {
+        isManager = false;
+        currentRole = 'VIEWER';
+      }
+    }
+
+    // Apply role-based control visibility
+    var edBtn = $('ed');
+    var puBtn = $('pu');
+    var coBtn = $('co');
+    if (!isManager) {
+      if (edBtn) { edBtn.hidden = true; edBtn.style.display = 'none'; }
+      if (puBtn) { puBtn.hidden = true; puBtn.style.display = 'none'; }
+      if (coBtn) { coBtn.hidden = true; coBtn.style.display = 'none'; }
+    }
+
+    // Fetch Client info
+    var clientName = 'Client';
+    if (currentProject.client_id) {
+      try {
+        var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+        if (client && client.name) clientName = client.name;
+      } catch (_) {}
+    }
+
+    // Render Title & Subtitle
+    var topH1 = document.querySelector('.top h1');
+    if (topH1) topH1.textContent = currentProject.name || 'Untitled project';
+    document.title = (currentProject.name || 'Project') + ' – Devworkspace';
+
+    var statusUi = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      topP.innerHTML = H.esc(clientName) + ' · <span class="tag">' + H.esc(statusUi) + '</span>';
+    }
+
+    // Render KV fields
+    var deliveryEl = document.querySelector('.kv div:first-child b');
+    if (deliveryEl) {
+      deliveryEl.textContent = currentProject.due_at ? (H.formatDate ? H.formatDate(currentProject.due_at) : currentProject.due_at.slice(0, 10)) : '—';
+    }
+
+    var stt = $('stt');
+    if (stt) stt.textContent = statusUi;
+
+    // Handle completed state
+    var isCompleted = currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED';
+    var clBanner = $('cl');
+    if (clBanner) clBanner.hidden = !isCompleted;
+    if (isCompleted) {
+      if (edBtn) { edBtn.hidden = true; edBtn.style.display = 'none'; }
+      if (puBtn) { puBtn.hidden = true; puBtn.style.display = 'none'; }
+      if (coBtn) { coBtn.hidden = true; coBtn.style.display = 'none'; }
+    }
+
+    // Load Milestones, Tasks, Reviews, Activity
+    await Promise.all([
+      loadMilestones(),
+      loadTasksStats(),
+      loadReviews(),
+      loadActivity()
+    ]);
+
+  } catch (err) {
+    if (H.handlePageAccessError && H.handlePageAccessError(err, 'app')) {
+      return;
+    }
+    var ce = $('ce');
+    if (ce) {
+      ce.textContent = err.message || 'Failed to load project.';
+      ce.hidden = false;
+    }
+  }
+}
+
+async function loadMilestones() {
+  var msContainer = document.querySelector('.ms');
+  if (!msContainer) return;
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones?limit=10');
+    var items = res.items || [];
+    if (items.length === 0) {
+      msContainer.innerHTML = '<div style="color:var(--muted);padding:8px 0">No milestones scheduled</div>';
+      return;
+    }
+    var html = items.map(function(m) {
+      var d = m.due_at ? (H.formatDate ? H.formatDate(m.due_at) : m.due_at.slice(0, 10)) : '—';
+      return '<div><b>' + H.esc(m.title) + '</b><span>' + H.esc(d) + '</span></div>';
+    }).join('');
+    msContainer.innerHTML = html;
+  } catch (_) {}
+}
+
+async function loadTasksStats() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks?limit=100');
+    var tasks = res.items || [];
+    var counts = { TODO: 0, IN_PROGRESS: 0, DONE: 0, BLOCKED: 0 };
+    tasks.forEach(function(t) {
+      if (counts[t.status] != null) counts[t.status]++;
+    });
+
+    var statsContainer = document.querySelector('.stats');
+    if (statsContainer) {
+      statsContainer.innerHTML =
+        '<div><b>' + counts.TODO + '</b><small>To do</small></div>' +
+        '<div><b>' + counts.IN_PROGRESS + '</b><small>In progress</small></div>' +
+        '<div><b>' + counts.DONE + '</b><small>Done</small></div>' +
+        '<div><b>' + counts.BLOCKED + '</b><small>Blocked</small></div>';
+    }
+
+    // Progress percentage
+    var nonCancelled = tasks.filter(function(t) { return t.status !== 'CANCELLED'; });
+    var total = nonCancelled.length;
+    var done = counts.DONE;
+    var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    var bdBar = document.querySelector('.kv .bd i');
+    var bdLabel = document.querySelector('.kv div:nth-child(3) small:last-child');
+    if (bdBar) bdBar.style.width = pct + '%';
+    if (bdLabel) bdLabel.textContent = pct + '% · progress alone doesn’t close a project';
+
+  } catch (_) {}
+}
+
+async function loadReviews() {
+  var tbody = document.querySelector('.tblw table tbody');
+  if (!tbody) return;
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/reviews?limit=5');
+    var reviews = res.items || [];
+    if (reviews.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center">No reviews yet</td></tr>';
+      return;
+    }
+    var html = reviews.map(function(r) {
+      var vNum = r.version_number ? 'v' + r.version_number : 'v' + r.id.slice(0, 4);
+      var status = r.status ? (H.toUIStatus ? H.toUIStatus(r.status) : r.status) : 'Open';
+      var due = r.due_at ? (H.formatDate ? H.formatDate(r.due_at) : r.due_at.slice(0, 10)) : '—';
+      return '<tr><td>' + H.esc(vNum) + '</td><td>' + H.esc(status) + '</td><td>' + H.esc(due) + '</td></tr>';
+    }).join('');
+    tbody.innerHTML = html;
+  } catch (_) {}
+}
+
+async function loadActivity() {
+  var actUl = document.querySelectorAll('.act')[1];
+  if (!actUl) return;
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/activity?limit=5');
+    var items = res.items || [];
+    if (items.length === 0) {
+      actUl.innerHTML = '<li style="color:var(--muted)">No recent activity</li>';
+      return;
+    }
+    var html = items.map(function(act) {
+      var timeStr = H.formatRelativeTime ? H.formatRelativeTime(act.created_at) : '';
+      var actorName = act.actor || 'Team member';
+      var desc = act.summary || act.action || 'Updated project';
+      return '<li><time>' + H.esc(timeStr) + '</time>' + H.esc(actorName) + ' ' + H.esc(desc) + '</li>';
+    }).join('');
+    actUl.innerHTML = html;
+  } catch (_) {}
+}
+
+// -------------------------------------------------------------
+// Action Handlers
+// -------------------------------------------------------------
+
+// 1. Edit Project Modal
+var edBtn = $('ed');
+if (edBtn) {
+  edBtn.onclick = function() {
+    if (!currentProject) return;
+    var derr = $('derr');
+    if (derr) derr.hidden = true;
+
+    var en = $('en');
+    var edd = $('edd');
+    if (en) en.value = currentProject.name || '';
+    if (edd) edd.value = currentProject.due_at ? currentProject.due_at.slice(0, 10) : '';
+
+    var dg = $('dg');
+    if (dg && dg.showModal) dg.showModal();
+  };
+}
+
+var dgf = $('dgf');
+if (dgf) {
+  dgf.onsubmit = async function(e) {
+    e.preventDefault();
+    if (!currentProject) return;
+
+    var en = $('en');
+    var edd = $('edd');
+    var derr = $('derr');
+
+    var nameVal = en ? en.value.trim() : '';
+    if (!nameVal) {
+      if (derr) {
+        derr.textContent = 'Project name can’t be empty.';
+        derr.hidden = false;
+      }
+      return;
+    }
+
+    var dueVal = edd && edd.value ? new Date(edd.value + 'T23:59:59.000Z').toISOString() : null;
+
+    try {
+      var body = {
+        client_id: currentProject.client_id,
+        name: nameVal,
+        description: currentProject.description || '',
+        due_at: dueVal,
+        portal_enabled: !!currentProject.portal_enabled,
+        status: currentProject.status
+      };
+
+      var updated = await api.patch(
+        '/organizations/' + activeOrgId + '/projects/' + activeProjectId,
+        body,
+        { revision: currentProject.revision }
+      );
+
+      currentProject = updated;
+      var dg = $('dg');
+      if (dg) dg.close();
+
+      await loadProject();
+    } catch (err) {
+      if (derr) {
+        derr.textContent = err.message || 'Failed to update project.';
+        derr.hidden = false;
+      }
+    }
+  };
+}
+
+// 2. Post Client Update Modal
+var puBtn = $('pu');
+if (puBtn) {
+  puBtn.onclick = function() {
+    var uerr = $('uerr');
+    if (uerr) uerr.hidden = true;
+    var ut = $('ut');
+    var ub = $('ub');
+    if (ut) ut.value = '';
+    if (ub) ub.value = '';
+
+    var du = $('du');
+    if (du && du.showModal) du.showModal();
+  };
+}
+
+var duf = $('duf');
+if (duf) {
+  duf.onsubmit = async function(e) {
+    e.preventDefault();
+    if (!currentProject) return;
+
+    var ut = $('ut');
+    var ub = $('ub');
+    var uerr = $('uerr');
+
+    var title = ut ? ut.value.trim() : '';
+    var msg = ub ? ub.value.trim() : '';
+    if (!msg) {
+      if (uerr) {
+        uerr.textContent = 'Add a message before posting.';
+        uerr.hidden = false;
+      }
+      return;
+    }
+
+    var fullBody = title ? (title + '\n\n' + msg) : msg;
+
+    try {
+      await api.post(
+        '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/updates',
+        { body: fullBody }
+      );
+
+      var du = $('du');
+      if (du) du.close();
+
+      var upBanner = $('up');
+      if (upBanner) {
+        upBanner.hidden = false;
+        setTimeout(function() { upBanner.hidden = true; }, 5000);
+      }
+
+      await loadActivity();
+    } catch (err) {
+      if (uerr) {
+        uerr.textContent = err.message || 'Failed to post update.';
+        uerr.hidden = false;
+      }
+    }
+  };
+}
+
+// 3. Complete Project
+var coBtn = $('co');
+if (coBtn) {
+  coBtn.onclick = async function() {
+    if (!currentProject) return;
+
+    if (H.askConfirm) {
+      var ok = await H.askConfirm('Complete this project? Completed projects become read-only.');
+      if (!ok) return;
+    }
+
+    var ce = $('ce');
+    if (ce) ce.hidden = true;
+
+    try {
+      var body = {
+        client_id: currentProject.client_id,
+        name: currentProject.name,
+        description: currentProject.description || '',
+        due_at: currentProject.due_at,
+        portal_enabled: !!currentProject.portal_enabled,
+        status: 'COMPLETED'
+      };
+
+      var updated = await api.patch(
+        '/organizations/' + activeOrgId + '/projects/' + activeProjectId,
+        body,
+        { revision: currentProject.revision }
+      );
+
+      currentProject = updated;
+      await loadProject();
+    } catch (err) {
+      if (ce) {
+        ce.textContent = err.message || 'Failed to complete project.';
+        ce.hidden = false;
+      }
+    }
+  };
+}
+
+// Start
+initPage();

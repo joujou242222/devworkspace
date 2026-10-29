@@ -1,0 +1,196 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var projectsMap = {};
+var writableProjects = [];
+var documentsList = [];
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function renderTable() {
+  var tb = $('tb');
+  var em = $('em');
+  var et = $('et');
+  var eh = $('eh');
+  var q = $('q');
+
+  var query = (q ? q.value : '').trim().toLowerCase();
+  var filtered = documentsList.filter(function(d) {
+    if (!query) return true;
+    return (d.title || '').toLowerCase().includes(query);
+  });
+
+  if (em) {
+    if (filtered.length === 0) {
+      em.hidden = false;
+      em.style.display = '';
+      if (et) et.textContent = documentsList.length > 0 ? 'No documents match' : 'No documents yet';
+      if (eh) eh.textContent = documentsList.length > 0 ? ' Try another title.' : ' Create one to start writing.';
+    } else {
+      em.hidden = true;
+      em.style.display = 'none';
+    }
+  }
+
+  if (tb) {
+    tb.innerHTML = filtered.map(function(doc) {
+      var titleHtml = '<a class="lnk" href="/workspace/document?id=' + encodeURIComponent(doc.id) + '&projectId=' + encodeURIComponent(doc.project_id) + '">' +
+        esc(doc.title || 'Untitled document') +
+        '</a>' + (doc.status === 'ARCHIVED' ? ' <span class="tag no">Archived</span>' : '');
+
+      var projName = projectsMap[doc.project_id] || 'Project';
+      var lastEdited = H.formatRelativeTime ? H.formatRelativeTime(doc.updated_at || doc.created_at) : (doc.updated_at || '');
+      var byAuthor = 'Team member';
+
+      return '<tr>' +
+        '<td>' + titleHtml + '</td>' +
+        '<td>' + esc(projName) + '</td>' +
+        '<td>' + esc(lastEdited) + '</td>' +
+        '<td>' + esc(byAuthor) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+}
+
+async function loadProjects() {
+  try {
+    var res = await H.fetchAllPages('/organizations/' + activeOrgId + '/projects');
+    var projects = res.items || [];
+    projectsMap = {};
+    writableProjects = [];
+
+    var dp = $('dp');
+    if (dp) dp.innerHTML = '';
+
+    projects.forEach(function(p) {
+      projectsMap[p.id] = p.name;
+      // Client cannot see documents, but internal team can create on non-archived projects
+      if (p.status !== 'ARCHIVED' && p.status !== 'COMPLETED') {
+        writableProjects.push(p);
+      }
+    });
+
+    if (dp) {
+      if (writableProjects.length === 0) {
+        dp.innerHTML = '<option value="" disabled>No active projects available</option>';
+      } else {
+        dp.innerHTML = writableProjects.map(function(p) {
+          return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load projects:', err);
+  }
+}
+
+async function loadDocuments() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/documents');
+    documentsList = res.items || [];
+    renderTable();
+  } catch (err) {
+    if (H && H.handlePageAccessError) {
+      H.handlePageAccessError(err, 'app');
+    }
+    throw err;
+  }
+}
+
+async function initDocuments() {
+  var session = await auth.init();
+  activeOrgId = auth.getActiveOrgId();
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId;
+  }
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  if (!activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'No organization selected.');
+    return;
+  }
+
+  // Bind Search input
+  var q = $('q');
+  if (q) {
+    q.oninput = function() {
+      renderTable();
+    };
+  }
+
+  // Bind New Document button
+  var nd = $('nd');
+  var dg = $('dg');
+  if (nd && dg) {
+    nd.onclick = function() {
+      dg.showModal();
+    };
+  }
+
+  // Bind Dialog Cancel
+  document.querySelectorAll('[data-x]').forEach(function(btn) {
+    btn.onclick = function() {
+      var d = btn.closest('dialog');
+      if (d) d.close();
+    };
+  });
+
+  // Bind Form Submit
+  var dgf = $('dgf');
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      var dp = $('dp');
+      var projId = dp ? dp.value : null;
+      if (!projId) return;
+
+      var submitBtn = dgf.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        var newDoc = await api.post('/organizations/' + activeOrgId + '/documents', {
+          project_id: projId,
+          title: 'Untitled document',
+          content: {
+            version: 1,
+            blocks: [
+              {
+                type: 'paragraph',
+                spans: [{ text: '' }]
+              }
+            ]
+          }
+        });
+
+        if (dg) dg.close();
+        window.location.href = '/workspace/document?id=' + encodeURIComponent(newDoc.id) + '&projectId=' + encodeURIComponent(projId);
+      } catch (err) {
+        if (submitBtn) submitBtn.disabled = false;
+        alert(err.message || 'Failed to create document.');
+      }
+    };
+  }
+
+  await loadProjects();
+  await loadDocuments();
+}
+
+initDocuments();

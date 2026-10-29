@@ -1,0 +1,33 @@
+DevWorkspace Phase 2 — 2026-10-16 (Africa/Cairo)
+Workspace: D:\Devworkspace
+Status: implemented and verified; stopped for Phase 2 user review.
+
+ACTUAL EXECUTION RESULTS
+pnpm install --offline --ignore-scripts: exit 0; existing pinned store only.
+pnpm phase2:prepare: exit 0, including repeat checks; 0001 through 0009 additive migrations.
+pnpm build: exit 0; Prisma experiment/product clients and all workspace apps.
+pnpm check: exit 0; runtime, boundaries, docs, static optional Compose, OpenAPI/client, env, lint, typecheck, 7 unit tests, format.
+pnpm test:phase2: exit 0; 20 pass, 0 fail, 0 skipped.
+node --test --test-concurrency=1 tests/phase2/tenancy.test.mjs: exit 0; 6 pass after final archived-organization denial.
+pnpm test:e2e: exit 0; 1 complete product browser workflow.
+pnpm test:integration (experiment mode): exit 0; 20 pass, 0 fail.
+pnpm test:e2e:experiment: exit 0; 1 retained browser workflow.
+pnpm test:native: final exit 0; 7 pass, 0 fail after topology readiness fix.
+pnpm phase2:mail-status: exit 0; identity/tenant pending 0, exhausted 0.
+git diff --check: exit 0.
+git diff --cached --check: exit 0.
+
+LIMITS / FAILED INTERMEDIATE RUNS
+Initial native rerun: 6 pass, 1 fail; S3 read preceded retained-volume registration.
+Intermediate product checks exposed trigger-field access, timezone interpretation,
+and swallowed mail callback failures; corrected with retained forward migrations,
+UTC connections, transactional callback failure observation, and tested rollback.
+Initial browser issues: populated textarea label and Next route-announcer locator;
+both corrected and complete browser flow passed.
+An intermediate legacy second-process startup failed during builds; final 20-test
+legacy run passed unchanged.
+See docs/PHASE_2_REPORT.md for detailed evidence, preservation, roles, recovery,
+exact scope, limitations and the proposed Phase 3 authorization boundary.
+
+No deployment, commit, push, dependency version upgrade, Docker/WSL installation,
+cluster reset or user-data deletion. Phase 3 has not started.

@@ -1,0 +1,209 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var allNotifications = [];
+var isUnreadFilter = true;
+var activeOrgId = null;
+var activePrincipalId = null;
+var clientPrincipals = [];
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function updateBellDot(unreadCount) {
+  var bd = $('bd');
+  if (bd) {
+    bd.style.display = unreadCount > 0 ? '' : 'none';
+  }
+}
+
+function renderDrawerList(items) {
+  var dl = $('dl');
+  var bell = $('bell');
+  var dr = $('dr');
+  if (!bell || !dr) return;
+
+  bell.onclick = function() {
+    dr.hidden = !dr.hidden;
+    bell.setAttribute('aria-expanded', String(!dr.hidden));
+  };
+
+  if (dl) {
+    if (items.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = items.slice(0, 8).map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var dr = $('dr');
+  var bell = $('bell');
+  if (dr && bell && !dr.hidden && !e.target.closest('#dr,#bell')) {
+    dr.hidden = true;
+    bell.setAttribute('aria-expanded', 'false');
+  }
+});
+
+function renderNotificationItem(n) {
+  var isUnread = !n.read_at;
+  var timeText = n.created_at ? (H && H.formatRelativeTime ? H.formatRelativeTime(n.created_at) : n.created_at.slice(0, 10)) : '';
+  var href = n.href || '#';
+
+  return '<li class="' + (isUnread ? 'u' : '') + '" data-id="' + esc(n.id) + '">' +
+    '<a href="' + esc(href) + '" style="text-decoration:none;color:inherit;display:block">' +
+    '<b>' + esc(n.title || n.summary || 'Notification') + '</b>' +
+    '<small>' + esc(timeText) + '</small>' +
+    '</a>' +
+    '</li>';
+}
+
+function render() {
+  var filtered = allNotifications.filter(function(n) {
+    return isUnreadFilter ? !n.read_at : !!n.read_at;
+  });
+
+  var nl = $('nl');
+  var ne = $('ne');
+  var nt = $('nt');
+  var tu = $('tu');
+  var tr = $('tr');
+  var ma = $('ma');
+
+  if (nl) {
+    nl.innerHTML = filtered.map(renderNotificationItem).join('');
+
+    nl.querySelectorAll('li.u a').forEach(function(link) {
+      link.onclick = async function() {
+        var li = link.closest('li[data-id]');
+        if (!li) return;
+        var notifId = li.dataset.id;
+        try {
+          await api.post('/organizations/' + activeOrgId + '/portal/notifications/' + notifId + '/read', {});
+          var target = allNotifications.find(function(x) { return x.id === notifId; });
+          if (target) target.read_at = new Date().toISOString();
+          render();
+        } catch (_) {}
+      };
+    });
+  }
+
+  if (ne) ne.hidden = filtered.length > 0;
+  if (nt) nt.textContent = isUnreadFilter ? 'You’re all caught up' : 'No read notifications';
+
+  if (tu) tu.setAttribute('aria-pressed', String(isUnreadFilter));
+  if (tr) tr.setAttribute('aria-pressed', String(!isUnreadFilter));
+
+  var unreadRemaining = allNotifications.filter(function(n) { return !n.read_at; }).length;
+  if (ma) ma.disabled = unreadRemaining === 0;
+  updateBellDot(unreadRemaining);
+  renderDrawerList(allNotifications);
+}
+
+async function loadNotifications() {
+  if (!activeOrgId) return;
+
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=100');
+    allNotifications = res.items || (Array.isArray(res) ? res : []);
+    render();
+  } catch (err) {
+    console.error('Failed to load portal notifications:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'mn')) return;
+  }
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = (auth.getClientPrincipals ? auth.getClientPrincipals() : []) || [];
+  activeOrgId = auth.getActiveOrgId();
+  activePrincipalId = auth.getActivePrincipalId();
+
+  // Populate workspace selector
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(p) {
+      var name = p.name || p.organization_name || ('Studio ' + (p.organization_id || '').slice(0, 4));
+      var sel = (p.id === activePrincipalId || p.organization_id === activeOrgId) ? ' selected' : '';
+      return '<option value="' + esc(p.id) + '" data-org="' + esc(p.organization_id) + '"' + sel + '>' + esc(name) + '</option>';
+    }).join('');
+
+    ws.onchange = async function() {
+      var opt = ws.options[ws.selectedIndex];
+      var pid = opt ? opt.value : null;
+      if (pid && pid !== activePrincipalId) {
+        $('mn').innerHTML = '<p class="empty">Switching workspace…</p>';
+        await auth.switchPrincipal(pid);
+        window.location.href = '/portal/portal-projects';
+      }
+    };
+  }
+
+  var tu = $('tu');
+  var tr = $('tr');
+  var ma = $('ma');
+
+  if (tu) {
+    tu.onclick = function() {
+      isUnreadFilter = true;
+      render();
+    };
+  }
+
+  if (tr) {
+    tr.onclick = function() {
+      isUnreadFilter = false;
+      render();
+    };
+  }
+
+  if (ma) {
+    ma.onclick = async function() {
+      ma.disabled = true;
+      try {
+        await api.post('/organizations/' + activeOrgId + '/portal/notifications/read-all', {});
+        var nowStr = new Date().toISOString();
+        allNotifications.forEach(function(n) {
+          if (!n.read_at) n.read_at = nowStr;
+        });
+        render();
+      } catch (err) {
+        console.error('Failed to mark all as read:', err);
+      } finally {
+        ma.disabled = false;
+      }
+    };
+  }
+
+  await loadNotifications();
+}
+
+init();

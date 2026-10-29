@@ -1,0 +1,12 @@
+{
+  "clamav": {
+    "version": "1.4.6",
+    "url": "https://github.com/Cisco-Talos/clamav/releases/download/clamav-1.4.6/clamav-1.4.6.win.x64.zip",
+    "sha256": "57b6fd1d60cd87bafe800f97407ecdef0576d36b3900b8b7abcfbbabe88295fd",
+    "license": "GPL-2.0",
+    "officialRelease": "https://github.com/Cisco-Talos/clamav/releases/tag/clamav-1.4.6"
+  },
+  "sharp": "0.35.5",
+  "pdfjs-dist": "6.4.299",
+  "node": "24.14.0"
+}

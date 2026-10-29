@@ -1,0 +1,217 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) tog.onclick = function() { $('app').classList.toggle('min'); };
+
+// Load shared header
+if (H.loadHeader) H.loadHeader();
+
+var rawTasks = [];
+var lastTaskRes = null;
+var projectMap = {};
+var activeOrgId = auth.activeOrgId;
+
+var UI_STATUSES = ['To do', 'In progress', 'Done', 'Blocked'];
+
+async function loadProjectsMap() {
+  if (!activeOrgId) return;
+  try {
+    var pRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects') : api.get('/organizations/' + activeOrgId + '/projects?limit=100'));
+    var items = pRes.items || [];
+    projectMap = {};
+    var fj = $('fj');
+    var curFj = fj ? fj.value : 'All';
+
+    if (fj) {
+      fj.innerHTML = '<option value="">All</option>' + items.map(function(p) {
+        projectMap[p.id] = p.name;
+        return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+      }).join('');
+      fj.value = (curFj && curFj !== 'All') ? curFj : '';
+    }
+  } catch (err) {
+    console.error('Failed to load projects map', err);
+  }
+}
+
+async function loadTasks() {
+  if (!activeOrgId) return;
+  try {
+    var params = {};
+    var fsVal = $('fs') ? $('fs').value : 'All';
+    if (fsVal !== 'All') {
+      params.status = H.toApiTaskStatus(fsVal);
+    }
+    var fpVal = $('fp') ? $('fp').value : 'All';
+    if (fpVal !== 'All') {
+      params.priority = H.toApiPriority(fpVal);
+    }
+    var fjVal = $('fj') ? $('fj').value : '';
+    if (fjVal) {
+      params.project_id = fjVal;
+    }
+
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/my-tasks', params) : api.get('/organizations/' + activeOrgId + '/my-tasks?limit=100'));
+    rawTasks = res.items || [];
+    lastTaskRes = res;
+    renderTasks();
+  } catch (err) {
+    H.handleErrorBanner(err);
+  }
+}
+
+function renderTasks() {
+  var fdVal = $('fd') ? $('fd').value : 'Any time';
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  var filtered = rawTasks.filter(function(t) {
+    if (!t.due_at) {
+      return fdVal === 'Any time';
+    }
+    var d = new Date(t.due_at);
+    d.setHours(0, 0, 0, 0);
+    var diffDays = Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (fdVal === 'Overdue') return diffDays < 0;
+    if (fdVal === 'Today') return diffDays === 0;
+    if (fdVal === 'This week') return diffDays >= 0 && diffDays <= 7;
+    return true;
+  });
+
+  var isEmpty = filtered.length === 0;
+  var hasFilter = ($('fs') && $('fs').value !== 'All') ||
+                  ($('fp') && $('fp').value !== 'All') ||
+                  ($('fj') && $('fj').value) ||
+                  (fdVal !== 'Any time');
+
+  var em = $('em');
+  if (em) {
+    em.hidden = !isEmpty;
+    var b = em.querySelector('b');
+    if (b) b.textContent = hasFilter ? 'No tasks match' : 'No tasks assigned to you';
+  }
+
+  var out = $('out');
+  if (!out) return;
+
+  if (isEmpty) {
+    out.innerHTML = '';
+    return;
+  }
+
+  out.innerHTML = '<div class="tblw"><table class="tbl"><thead><tr>' +
+    '<th>Task</th><th>Priority</th><th>Due</th><th>Status</th>' +
+    '</tr></thead><tbody>' + filtered.map(function(t) {
+      var pName = projectMap[t.project_id] || '—';
+      var prioUI = H.toUIPriority(t.priority);
+      var isHigh = t.priority === 'HIGH' || t.priority === 'URGENT';
+      var dueHtml = t.due_at ? H.formatDaysDue(t.due_at) : '—';
+      var currentStatusUI = H.toUITaskStatus(t.status);
+
+      return '<tr data-id="' + esc(t.id) + '" data-project-id="' + esc(t.project_id) + '" data-revision="' + t.revision + '">' +
+        '<td><b style="font-weight:500">' + esc(t.title) + '</b><br><small style="color:var(--muted)">' + esc(pName) + '</small></td>' +
+        '<td><span class="tag' + (isHigh ? '' : ' no') + '" style="' + (isHigh ? '' : 'border-color:var(--line);color:var(--muted)') + '">' + esc(prioUI) + '</span></td>' +
+        '<td>' + dueHtml + '</td>' +
+        '<td><select class="sel" data-task-id="' + esc(t.id) + '" data-project-id="' + esc(t.project_id) + '" data-revision="' + t.revision + '" aria-label="Status">' +
+        UI_STATUSES.map(function(s) {
+          return '<option' + (s === currentStatusUI ? ' selected' : '') + '>' + s + '</option>';
+        }).join('') +
+        '</select></td>' +
+        '</tr>';
+    }).join('') + '</tbody></table></div>';
+
+  if (H.renderCapNotice && lastTaskRes) {
+    H.renderCapNotice(out, lastTaskRes);
+  }
+
+  // Wire status change dropdowns
+  out.querySelectorAll('select[data-task-id]').forEach(function(sel) {
+    sel.onchange = async function(e) {
+      var taskId = sel.dataset.taskId;
+      var projectId = sel.dataset.projectId;
+      var domRev = parseInt(sel.dataset.revision, 10);
+      var newStatusUI = sel.value;
+      var newStatusApi = H.toApiTaskStatus(newStatusUI);
+
+      var ce = $('ce');
+      if (ce) ce.hidden = true;
+
+      try {
+        // Determine role using API data: check active principal org role first
+        var principal = auth.getActivePrincipal();
+        var isManager = principal && principal.role !== 'MEMBER';
+        if (!isManager && principal) {
+          try {
+            var memRes = await api.get('/organizations/' + activeOrgId + '/projects/' + projectId + '/members?limit=100');
+            var myMem = (memRes.items || []).find(function(m) { return m.membership_id === principal.id; });
+            if (myMem && myMem.role === 'MANAGER') {
+              isManager = true;
+            }
+          } catch (_) {}
+        }
+
+        // Fetch freshest server record to avoid overwriting modified fields with stale UI state
+        var freshTask = await api.get('/organizations/' + activeOrgId + '/projects/' + projectId + '/tasks/' + taskId);
+
+        var payload;
+        if (isManager) {
+          // Managers validated with full 8-field task schema built from fresh server record
+          payload = {
+            title: freshTask.title,
+            description: freshTask.description || '',
+            milestone_id: freshTask.milestone_id || null,
+            assignee_id: freshTask.assignee_id || null,
+            priority: freshTask.priority,
+            status: newStatusApi,
+            due_at: freshTask.due_at || null,
+            position: typeof freshTask.position === 'number' ? freshTask.position : 0
+          };
+        } else {
+          // Contributors validated with strict workState schema: { status } only
+          payload = {
+            status: newStatusApi
+          };
+        }
+
+        // Send with DOM revision to detect concurrent modification conflicts
+        await api.patch('/organizations/' + activeOrgId + '/projects/' + projectId + '/tasks/' + taskId, payload, {
+          revision: domRev
+        });
+        await loadTasks();
+      } catch (err) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          if (ce) {
+            ce.textContent = 'This task was modified elsewhere. Reloading latest state...';
+            ce.hidden = false;
+          }
+          await loadTasks();
+        } else {
+          H.handleErrorBanner(err);
+        }
+      }
+    };
+  });
+}
+
+// Wire filter events
+['fs', 'fp', 'fj', 'fd'].forEach(function(id) {
+  var el = $(id);
+  if (el) el.onchange = function() {
+    if (id === 'fd') renderTasks();
+    else loadTasks();
+  };
+});
+
+if (location.hash === '#removed' && $('rm')) $('rm').hidden = false;
+
+async function init() {
+  await loadProjectsMap();
+  await loadTasks();
+}
+init();

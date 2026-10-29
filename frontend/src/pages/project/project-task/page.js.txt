@@ -1,0 +1,493 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var activeTaskId = null;
+var currentProject = null;
+var currentTask = null;
+var currentChecklist = [];
+var currentComments = [];
+var currentHistory = [];
+var projectMembers = [];
+var projectMilestones = [];
+var isManager = false;
+var isContributor = false;
+var isViewer = false;
+var userProjectMemberId = null;
+var currentUserId = null;
+
+function toUITaskStatus(apiStatus) {
+  if (H.toUITaskStatus) return H.toUITaskStatus(apiStatus);
+  var map = { TODO: 'To do', IN_PROGRESS: 'In progress', DONE: 'Done', BLOCKED: 'Blocked', CANCELLED: 'Cancelled' };
+  return map[apiStatus] || apiStatus || 'To do';
+}
+
+function toApiTaskStatus(uiStatus) {
+  if (H.toApiTaskStatus) return H.toApiTaskStatus(uiStatus);
+  var map = { 'To do': 'TODO', 'In progress': 'IN_PROGRESS', 'Done': 'DONE', 'Blocked': 'BLOCKED', 'Cancelled': 'CANCELLED' };
+  return map[uiStatus] || 'TODO';
+}
+
+function apiPriorityToUi(p) {
+  if (p === 'HIGH') return 'High';
+  if (p === 'NORMAL') return 'Medium';
+  if (p === 'LOW') return 'Low';
+  if (p === 'URGENT') return 'Urgent';
+  return 'Medium';
+}
+
+function formatDue(dueAt) {
+  if (!dueAt) return 'No due date';
+  var due = new Date(dueAt);
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var dueDate = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  var diffDays = Math.round((dueDate - today) / 864e5);
+  if (diffDays < 0) return '<span class="late">Overdue ' + (-diffDays) + 'd</span>';
+  if (diffDays === 0) return 'Due today';
+  return 'Due in ' + diffDays + 'd';
+}
+
+function getAssigneeName(assigneeId) {
+  if (!assigneeId) return 'No one yet';
+  var m = projectMembers.find(function(x) { return x.id === assigneeId; });
+  return m ? (m.name || 'Member') : 'No one yet';
+}
+
+function getMilestoneTitle(milestoneId) {
+  if (!milestoneId) return 'None';
+  var m = projectMilestones.find(function(x) { return x.id === milestoneId; });
+  return m ? (m.title || 'Milestone') : 'None';
+}
+
+function canUserEditTask() {
+  if (!currentProject || currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+    return false;
+  }
+  if (isManager) return true;
+  if (isContributor && currentTask && currentTask.assignee_id === userProjectMemberId && currentTask.status !== 'CANCELLED') {
+    return true;
+  }
+  return false;
+}
+
+function canUserPostComments() {
+  if (!currentProject || currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+    return false;
+  }
+  return isManager || isContributor;
+}
+
+function renderTaskDetails() {
+  if (!currentTask) return;
+
+  var isRO = !canUserEditTask();
+
+  // Closed project banner
+  var cl = $('cl');
+  if (cl) {
+    var isProjectClosed = currentProject && (currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED');
+    cl.hidden = !isProjectClosed;
+  }
+
+  // Task title & Status
+  var taskH2 = document.querySelector('main.page > h2');
+  var uiStatus = toUITaskStatus(currentTask.status);
+  if (taskH2) {
+    taskH2.innerHTML = H.esc(currentTask.title) + ' <span class="st ' + (uiStatus === 'Blocked' ? 'bad' : 'ok') + '" id="stt">' + H.esc(uiStatus) + '</span>';
+  }
+
+  // Source tag
+  var sourceP = document.querySelector('p.mg:has(span.tag.no)') || document.querySelector('p.mg');
+  if (sourceP) {
+    sourceP.hidden = !currentTask.source_feedback_thread_id;
+  }
+
+  // KV fields
+  var priorityEl = document.querySelector('.kv div:nth-child(1) b');
+  if (priorityEl) priorityEl.textContent = apiPriorityToUi(currentTask.priority);
+
+  var dueEl = document.querySelector('.kv div:nth-child(2) b');
+  if (dueEl) dueEl.innerHTML = formatDue(currentTask.due_at);
+
+  var milestoneEl = document.querySelector('.kv div:nth-child(3) b');
+  if (milestoneEl) milestoneEl.textContent = getMilestoneTitle(currentTask.milestone_id);
+
+  var asEl = $('as');
+  if (asEl) asEl.textContent = getAssigneeName(currentTask.assignee_id);
+
+  // Description
+  var descP = document.querySelector('.grid > div:first-child > p');
+  if (descP) {
+    descP.textContent = currentTask.description || 'No description provided.';
+  }
+
+  // Buttons state
+  var dnBtn = $('dn');
+  var blBtn = $('bl');
+  if (dnBtn) {
+    dnBtn.textContent = uiStatus === 'Done' ? 'Reopen' : 'Mark done';
+    dnBtn.disabled = isRO;
+  }
+  if (blBtn) {
+    blBtn.textContent = uiStatus === 'Blocked' ? 'Unblock' : 'Block';
+    blBtn.disabled = isRO || uiStatus === 'Done';
+  }
+
+  // Comment input
+  var nc = $('nc');
+  var pc = $('pc');
+  var canComment = canUserPostComments();
+  if (nc) nc.disabled = !canComment;
+  if (pc) pc.disabled = !canComment;
+}
+
+function renderChecklist() {
+  var isRO = !canUserEditTask();
+  var ne = $('ne');
+  var ckl = $('ckl');
+  var cc = $('cc');
+
+  if (ne) ne.hidden = currentChecklist.length > 0;
+  if (!ckl) return;
+
+  var doneCount = currentChecklist.filter(function(c) { return c.completed; }).length;
+  if (cc) cc.textContent = doneCount + ' of ' + currentChecklist.length;
+
+  ckl.innerHTML = currentChecklist.map(function(item) {
+    var checkedAttr = item.completed ? ' checked' : '';
+    var disabledAttr = isRO ? ' disabled' : '';
+    return '<label class="ck2"><input type="checkbox" data-cid="' + H.esc(item.id) + '"' + checkedAttr + disabledAttr + '><span>' + H.esc(item.label) + '</span></label>';
+  }).join('');
+
+  ckl.querySelectorAll('input[data-cid]').forEach(function(box) {
+    box.onchange = async function() {
+      var cid = box.getAttribute('data-cid');
+      var item = currentChecklist.find(function(x) { return x.id === cid; });
+      if (!item) return;
+
+      var newChecked = box.checked;
+      try {
+        var patchBody = isManager
+          ? { label: item.label, position: item.position || 0, completed: newChecked }
+          : { completed: newChecked };
+
+        var updated = await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId + '/checklist/' + cid,
+          patchBody,
+          { revision: item.revision || 1 }
+        );
+        item.completed = newChecked;
+        if (updated && updated.revision) item.revision = updated.revision;
+        renderChecklist();
+      } catch (err) {
+        box.checked = !newChecked;
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = err.message || 'Failed to update checklist.';
+          ce.hidden = false;
+        }
+      }
+    };
+  });
+}
+
+function renderComments() {
+  var cms = $('cms');
+  if (!cms) return;
+
+  if (currentComments.length === 0) {
+    cms.innerHTML = '<p style="color:var(--muted);font-size:14px">No comments yet</p>';
+    return;
+  }
+
+  cms.innerHTML = currentComments.map(function(c) {
+    var isMe = c.author_id === currentUserId;
+    var authorName = isMe ? 'You' : (projectMembers.find(function(m) { return m.user_id === c.author_id; })?.name || 'Team member');
+    var timeStr = H.formatRelativeTime ? H.formatRelativeTime(c.created_at) : '';
+    return '<div class="cm' + (isMe ? ' re' : '') + '"><b style="font-weight:500">' + H.esc(authorName) + '</b> <small>' + H.esc(timeStr) + '</small><br>' + H.esc(c.body) + '</div>';
+  }).join('');
+}
+
+function renderHistory() {
+  var histUl = document.querySelectorAll('.act')[1];
+  if (!histUl) return;
+
+  if (currentHistory.length === 0) {
+    histUl.innerHTML = '<li style="color:var(--muted)">No change history</li>';
+    return;
+  }
+
+  histUl.innerHTML = currentHistory.map(function(h) {
+    var timeStr = H.formatRelativeTime ? H.formatRelativeTime(h.created_at) : '';
+    var actor = h.actor_id === currentUserId ? 'You' : (projectMembers.find(function(m) { return m.user_id === h.actor_id; })?.name || 'Member');
+    var actionText = 'updated task';
+    if (h.kind === 'task.created') actionText = 'created task';
+    else if (h.kind === 'comment.created') actionText = 'added a comment';
+    else if (h.fields && h.fields.status) actionText = 'moved it to ' + toUITaskStatus(h.fields.status);
+    else if (h.fields && h.fields.assignee_id) actionText = 'updated assignment';
+
+    return '<li><time>' + H.esc(timeStr) + '</time>' + H.esc(actor) + ' ' + H.esc(actionText) + '</li>';
+  }).join('');
+}
+
+function renderDeliverables() {
+  var delUl = document.querySelectorAll('.act')[0];
+  if (!delUl) return;
+
+  if (currentTask && currentTask.source_review_id) {
+    delUl.innerHTML = '<li>Review cycle ' + H.esc(currentTask.source_review_id.slice(0, 8)) + '</li>';
+  } else {
+    delUl.innerHTML = '<li style="color:var(--muted)">No linked deliverables</li>';
+  }
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = H.esc(clientName) + ' · <span class="tag">' + H.esc(uiStatus) + '</span>';
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadMembersAndRole() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+    var rawMembers = res.items || [];
+
+    projectMembers = rawMembers.map(function(pm) {
+      return {
+        id: pm.id,
+        membership_id: pm.membership_id,
+        role: pm.role,
+        status: pm.status,
+        name: pm.name || 'Member'
+      };
+    });
+
+    isManager = false;
+    isContributor = false;
+    isViewer = false;
+    userProjectMemberId = null;
+
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+    } else {
+      var myOrgMemberId = principal ? (principal.id || principal.membership_id) : '';
+      var pMember = projectMembers.find(function(pm) { return pm.membership_id === myOrgMemberId; });
+      if (pMember) {
+        userProjectMemberId = pMember.id;
+        if (pMember.role === 'MANAGER') isManager = true;
+        else if (pMember.role === 'CONTRIBUTOR') isContributor = true;
+        else if (pMember.role === 'VIEWER') isViewer = true;
+      }
+    }
+  } catch (_) {}
+}
+
+async function loadMilestones() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones');
+    projectMilestones = res.items || [];
+  } catch (_) {}
+}
+
+async function loadTask() {
+  try {
+    if (!activeTaskId) {
+      var tList = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks?limit=1');
+      var items = tList.items || [];
+      if (items.length > 0) {
+        activeTaskId = items[0].id;
+      } else {
+        if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'No tasks found for this project.');
+        return;
+      }
+    }
+
+    currentTask = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId);
+    document.title = (currentTask.title || 'Task') + ' – Devworkspace';
+
+    // Checklist
+    try {
+      var clRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId + '/checklist');
+      currentChecklist = clRes.items || [];
+    } catch (_) {
+      currentChecklist = [];
+    }
+
+    // Comments
+    try {
+      var cmRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId + '/comments');
+      currentComments = cmRes.items || [];
+    } catch (_) {
+      currentComments = [];
+    }
+
+    // History
+    try {
+      var hRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId + '/history');
+      currentHistory = hRes.items || [];
+    } catch (_) {
+      currentHistory = [];
+    }
+
+    renderTaskDetails();
+    renderChecklist();
+    renderComments();
+    renderHistory();
+    renderDeliverables();
+
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+async function updateTaskStatus(newApiStatus) {
+  var ce = $('ce');
+  if (ce) ce.hidden = true;
+
+  try {
+    var payload;
+    if (isManager) {
+      payload = {
+        title: currentTask.title,
+        description: currentTask.description || '',
+        milestone_id: currentTask.milestone_id,
+        assignee_id: currentTask.assignee_id,
+        priority: currentTask.priority,
+        status: newApiStatus,
+        due_at: currentTask.due_at,
+        position: currentTask.position || 0
+      };
+    } else {
+      payload = { status: newApiStatus };
+    }
+
+    var updated = await api.patch(
+      '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId,
+      payload,
+      { revision: currentTask.revision }
+    );
+
+    currentTask = updated;
+    await loadTask();
+  } catch (err) {
+    if (ce) {
+      ce.textContent = err.message || 'Failed to update task status.';
+      ce.hidden = false;
+    }
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+  activeTaskId = new URLSearchParams(window.location.search).get('taskId');
+
+  var user = auth.getUser ? auth.getUser() : null;
+  if (!user && api.get) {
+    try { user = await api.get('/me'); } catch (_) {}
+  }
+  currentUserId = user?.id;
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Mark done button
+  var dnBtn = $('dn');
+  if (dnBtn) {
+    dnBtn.onclick = async function() {
+      if (!currentTask) return;
+      var curUi = toUITaskStatus(currentTask.status);
+      var nextApi = curUi === 'Done' ? 'IN_PROGRESS' : 'DONE';
+      await updateTaskStatus(nextApi);
+    };
+  }
+
+  // Block button
+  var blBtn = $('bl');
+  if (blBtn) {
+    blBtn.onclick = async function() {
+      if (!currentTask) return;
+      var curUi = toUITaskStatus(currentTask.status);
+      var nextApi = curUi === 'Blocked' ? 'IN_PROGRESS' : 'BLOCKED';
+      await updateTaskStatus(nextApi);
+    };
+  }
+
+  // Post comment button
+  var pcBtn = $('pc');
+  if (pcBtn) {
+    pcBtn.onclick = async function() {
+      var nc = $('nc');
+      var ce = $('ce');
+      if (ce) ce.hidden = true;
+
+      var bodyText = nc ? nc.value.trim() : '';
+      if (!bodyText) return;
+
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + activeTaskId + '/comments',
+          { body: bodyText, thread_id: null }
+        );
+        if (nc) nc.value = '';
+        await loadTask();
+      } catch (err) {
+        if (ce) {
+          ce.textContent = err.message || 'Failed to post comment.';
+          ce.hidden = false;
+        }
+      }
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadMembersAndRole();
+    await loadMilestones();
+    await loadTask();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+// Start
+initPage();

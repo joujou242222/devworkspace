@@ -1,0 +1,326 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) tog.onclick = function() { $('app').classList.toggle('min'); };
+
+// Initialize shared header (notifications, unread dot, user avatar)
+if (H.loadHeader) H.loadHeader();
+
+var clients = [];
+var clientMap = {};
+var rawProjects = [];
+var lastProjectRes = null;
+var activeOrgId = auth.activeOrgId;
+
+async function loadClients() {
+  if (!activeOrgId) return;
+  try {
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/clients') : api.get('/organizations/' + activeOrgId + '/clients?limit=100'));
+    clients = res.items || [];
+    clientMap = {};
+    var fc = $('fc');
+    var pc = $('pc');
+    var curFcVal = fc ? fc.value : 'All';
+
+    if (fc) {
+      fc.innerHTML = '<option value="">All</option>' + clients.map(function(c) {
+        clientMap[c.id] = c.name;
+        return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+      }).join('');
+      fc.value = (curFcVal && curFcVal !== 'All') ? curFcVal : '';
+    }
+    if (pc) {
+      if (clients.length === 0) {
+        pc.innerHTML = '<option value="" disabled selected>No clients available</option>';
+      } else {
+        pc.innerHTML = clients.map(function(c) {
+          clientMap[c.id] = c.name;
+          return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load clients', err);
+  }
+}
+
+var teamMembers = [];
+var teamLoadError = false;
+
+async function loadTeam() {
+  if (!activeOrgId) return;
+  try {
+    teamLoadError = false;
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/team') : api.get('/organizations/' + activeOrgId + '/team?limit=100'));
+    teamMembers = (res.items || []).filter(function(m) { return m.status === 'ACTIVE'; });
+    var curPrincipalId = (auth && auth.getActivePrincipal) ? auth.getActivePrincipal()?.id : null;
+    var curEmail = (auth && auth.user) ? (auth.user.email || '').toLowerCase() : '';
+    var myMember = teamMembers.find(function(m) {
+      return (curPrincipalId && m.id === curPrincipalId) || (curEmail && (m.email || '').toLowerCase() === curEmail);
+    }) || teamMembers[0];
+
+    var pm = $('pm');
+    if (pm) {
+      if (teamMembers.length === 0) {
+        pm.innerHTML = '<option value="" selected>No active members</option>';
+      } else {
+        pm.innerHTML = teamMembers.map(function(m) {
+          var isPreselected = myMember && m.id === myMember.id;
+          return '<option value="' + esc(m.id) + '"' + (isPreselected ? ' selected' : '') + '>' + esc(m.name || m.email) + (isPreselected ? ' (You)' : '') + '</option>';
+        }).join('');
+      }
+    }
+  } catch (err) {
+    teamLoadError = true;
+    console.error('Failed to load team', err);
+    var derr = $('derr');
+    if (derr) {
+      derr.textContent = 'Could not load team members. Assigning a manager will be unavailable.';
+      derr.hidden = false;
+    }
+    var pm = $('pm');
+    if (pm) {
+      pm.innerHTML = '<option value="" disabled selected>Team unavailable</option>';
+    }
+  }
+}
+
+async function loadProjects() {
+  if (!activeOrgId) return;
+  try {
+    var params = {};
+    var searchVal = $('q') ? $('q').value.trim() : '';
+    if (searchVal) params.q = searchVal;
+
+    var statusVal = $('fs') ? $('fs').value : 'All';
+    if (statusVal !== 'All') {
+      params.status = H.toApiStatus(statusVal);
+    }
+
+    var clientVal = $('fc') ? $('fc').value : '';
+    if (clientVal) {
+      params.client_id = clientVal;
+    }
+
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects', params) : api.get('/organizations/' + activeOrgId + '/projects?limit=100'));
+    rawProjects = res.items || [];
+    lastProjectRes = res;
+    renderProjects();
+  } catch (err) {
+    H.handleErrorBanner(err);
+  }
+}
+
+function renderProjects() {
+  var showArchived = $('fa') && $('fa').value === 'Archived';
+  var filtered = rawProjects.filter(function(p) {
+    var isArchived = p.status === 'ARCHIVED';
+    return showArchived ? isArchived : !isArchived;
+  });
+
+  var isEmpty = filtered.length === 0;
+  var hasFilter = ($('q') && $('q').value.trim()) || ($('fs') && $('fs').value !== 'All') || ($('fc') && $('fc').value);
+
+  if (isEmpty) {
+    var title = 'No projects match';
+    var hint = 'Try clearing a filter.';
+    if (!hasFilter && !showArchived) {
+      if (clients.length === 0) {
+        title = 'No clients yet';
+        hint = 'Create your first <a class="lnk" href="/workspace/clients">client</a> before starting a project.';
+      } else if (rawProjects.length === 0) {
+        title = 'No projects yet';
+        hint = 'Create your first project using the New project button above.';
+      }
+    }
+    H.setEmptyState(true, title, hint);
+    var out = $('out');
+    if (out) out.innerHTML = '';
+    return;
+  }
+
+  H.setEmptyState(false);
+
+  var isGrid = $('vw') && $('vw').value === 'Grid';
+  var out = $('out');
+  if (!out) return;
+
+  if (isGrid) {
+    out.innerHTML = '<div class="cards">' + filtered.map(function(p) {
+      var cName = clientMap[p.client_id] || '—';
+      var uiStatus = H.toUIStatus(p.status);
+      var isArch = p.status === 'ARCHIVED';
+      var openTasks = p.summary ? (p.summary.total - p.summary.done) : 0;
+      var nextDue = p.due_at ? H.formatDate(p.due_at) : '—';
+      return '<div class="card" data-id="' + esc(p.id) + '" data-revision="' + p.revision + '">' +
+        '<a href="/project/project?id=' + esc(p.id) + '" style="text-decoration:none;color:inherit"><b>' + esc(p.name) + (isArch ? ' <span class="tag no">Archived</span>' : '') + '</b></a>' +
+        '<small>' + esc(cName) + ' · ' + esc(uiStatus) + '</small>' +
+        '<small>' + openTasks + ' open tasks</small>' +
+        '<small>Next due ' + esc(nextDue) + '</small>' +
+        '</div>';
+    }).join('') + '</div>';
+  } else {
+    out.innerHTML = '<div class="tblw"><table class="tbl"><thead><tr>' +
+      '<th>Project</th><th>Client</th><th>Open tasks</th><th>Next due</th><th>Last activity</th>' +
+      '</tr></thead><tbody>' + filtered.map(function(p) {
+        var cName = clientMap[p.client_id] || '—';
+        var uiStatus = H.toUIStatus(p.status);
+        var isArch = p.status === 'ARCHIVED';
+        var openTasks = p.summary ? (p.summary.total - p.summary.done) : 0;
+        var nextDue = p.due_at ? H.formatDate(p.due_at) : '—';
+        var lastAct = p.updated_at ? H.formatRelativeTime(p.updated_at) : '—';
+        return '<tr data-id="' + esc(p.id) + '" data-revision="' + p.revision + '">' +
+          '<td><a class="lnk" href="/project/project?id=' + esc(p.id) + '">' + esc(p.name) + '</a>' +
+          (isArch ? ' <span class="tag no">Archived</span>' : '') +
+          '<br><small style="color:var(--muted)">' + esc(uiStatus) + '</small>' +
+          '</td>' +
+          '<td>' + esc(cName) + '</td>' +
+          '<td>' + openTasks + '</td>' +
+          '<td>' + esc(nextDue) + '</td>' +
+          '<td>' + esc(lastAct) + '</td>' +
+          '</tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  if (H.renderCapNotice && lastProjectRes) {
+    H.renderCapNotice(out, lastProjectRes);
+  }
+}
+
+// Wire filters and controls
+['fc', 'fs', 'fa', 'vw'].forEach(function(id) {
+  var el = $(id);
+  if (el) el.onchange = function() {
+    if (id === 'vw' || id === 'fa') renderProjects();
+    else loadProjects();
+  };
+});
+
+var qEl = $('q');
+if (qEl) qEl.oninput = function() { loadProjects(); };
+
+// Modal handling
+var npBtn = $('np');
+if (npBtn) {
+  npBtn.onclick = function() {
+    var derr = $('derr');
+    if (derr) {
+      derr.hidden = true;
+      derr.textContent = '';
+    }
+    var submitBtn = $('dgf') ? $('dgf').querySelector('button[type="submit"]') : null;
+
+    if (clients.length === 0) {
+      if (derr) {
+        derr.innerHTML = 'No clients found. You must <a class="lnk" href="/workspace/clients">create a client</a> first before starting a project.';
+        derr.hidden = false;
+      }
+      if (submitBtn) submitBtn.disabled = true;
+    } else {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+
+    if (teamLoadError && derr) {
+      derr.textContent = 'Could not load team members. Assigning a manager will be unavailable.';
+      derr.hidden = false;
+    }
+
+    var dg = $('dg');
+    if (dg && dg.showModal) dg.showModal();
+  };
+}
+
+document.querySelectorAll('[data-x]').forEach(function(b) {
+  b.onclick = function() {
+    var d = b.closest('dialog');
+    if (d) d.close();
+  };
+});
+
+var dgf = $('dgf');
+if (dgf) {
+  dgf.onsubmit = async function(e) {
+    e.preventDefault();
+    var nm = $('pn') ? $('pn').value.trim() : '';
+    var clientId = $('pc') ? $('pc').value : '';
+    var pmId = $('pm') ? $('pm').value : '';
+    var dueVal = $('pd') ? $('pd').value : '';
+    var derr = $('derr');
+
+    if (!nm) {
+      if (derr) { derr.textContent = 'Give the project a name.'; derr.hidden = false; }
+      return;
+    }
+    if (!clientId) {
+      if (derr) { derr.textContent = 'Please select a client.'; derr.hidden = false; }
+      return;
+    }
+
+    // Set to 12:00:00 UTC to prevent local timezone rollover
+    var isoDue = dueVal ? new Date(dueVal + 'T12:00:00.000Z').toISOString() : null;
+
+    try {
+      var created = await api.post('/organizations/' + activeOrgId + '/projects', {
+        client_id: clientId,
+        name: nm,
+        description: '',
+        due_at: isoDue,
+        portal_enabled: true,
+        status: 'PLANNED'
+      });
+
+      var memberError = null;
+      if (pmId && created && created.id) {
+        try {
+          await api.post('/organizations/' + activeOrgId + '/projects/' + created.id + '/members', {
+            membership_id: pmId,
+            role: 'MANAGER',
+            status: 'ACTIVE'
+          });
+        } catch (mErr) {
+          console.error('Failed to assign manager', mErr);
+          memberError = mErr;
+        }
+      }
+
+      var dg = $('dg');
+      if (dg) dg.close();
+      if ($('pn')) $('pn').value = '';
+      if ($('pd')) $('pd').value = '';
+      if ($('pm')) $('pm').value = '';
+
+      await loadProjects();
+
+      if (memberError) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = 'Project "' + nm + '" was created, but project manager assignment failed: ' + (memberError.message || 'unknown error');
+          ce.hidden = false;
+        }
+      }
+    } catch (err) {
+      H.handleErrorBanner(err, { dialogErrElId: 'derr' });
+    }
+  };
+}
+
+if (location.hash === '#conflict' && $('ce')) $('ce').hidden = false;
+if (location.hash === '#new') {
+  var derrEl = $('derr');
+  if (derrEl) derrEl.hidden = true;
+  var dg = $('dg');
+  if (dg && dg.showModal) dg.showModal();
+}
+
+// Call directly at the end of the script (not DOMContentLoaded)
+async function init() {
+  await loadClients();
+  await loadTeam();
+  await loadProjects();
+}
+init();

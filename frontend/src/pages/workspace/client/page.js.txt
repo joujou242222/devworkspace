@@ -1,0 +1,274 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) tog.onclick = function() { $('app').classList.toggle('min'); };
+
+// Load shared header
+if (H.loadHeader) H.loadHeader();
+
+var activeOrgId = auth.activeOrgId;
+var clientId = new URLSearchParams(location.search).get('id');
+
+var currentClient = null;
+var clientProjects = [];
+var clientContacts = [];
+var clientInvitations = [];
+var projectGrants = {}; // projectId -> array of grants
+
+async function loadClientDetail() {
+  if (!activeOrgId) return;
+
+  // If no clientId in URL, fetch first client from organization
+  if (!clientId) {
+    try {
+      var allClients = await api.get('/organizations/' + activeOrgId + '/clients?limit=1');
+      if (allClients.items && allClients.items.length > 0) {
+        clientId = allClients.items[0].id;
+      } else {
+        var h1 = document.querySelector('.top h1');
+        if (h1) h1.textContent = 'No clients found';
+        var ne = $('ne');
+        if (ne) ne.hidden = false;
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to resolve client', e);
+      return;
+    }
+  }
+
+  try {
+    // 1. Fetch Client
+    currentClient = await api.get('/organizations/' + activeOrgId + '/clients/' + clientId);
+
+    // 2. Fetch Projects for this client
+    var pRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects', { client_id: clientId }) : api.get('/organizations/' + activeOrgId + '/projects?client_id=' + clientId + '&limit=100'));
+    clientProjects = (pRes.items || []).filter(function(p) { return p.client_id === clientId; });
+
+    // 3. Fetch Contacts
+    var cRes = await api.get('/organizations/' + activeOrgId + '/clients/' + clientId + '/contacts?limit=100');
+    clientContacts = cRes.items || [];
+
+    // 4. Fetch Invitations
+    try {
+      var iRes = await api.get('/organizations/' + activeOrgId + '/clients/' + clientId + '/invitations?limit=100');
+      clientInvitations = iRes.items || [];
+    } catch (_) {
+      clientInvitations = [];
+    }
+
+    // 5. Fetch Grants for each project
+    projectGrants = {};
+    if (clientProjects.length > 0) {
+      var grantPromises = clientProjects.map(function(p) {
+        return api.get('/organizations/' + activeOrgId + '/projects/' + p.id + '/grants?limit=100');
+      });
+      var grantResults = await Promise.allSettled(grantPromises);
+      grantResults.forEach(function(r, idx) {
+        if (r.status === 'fulfilled' && r.value && Array.isArray(r.value.items)) {
+          projectGrants[clientProjects[idx].id] = r.value.items;
+        } else {
+          projectGrants[clientProjects[idx].id] = [];
+        }
+      });
+    }
+
+    renderClientPage();
+  } catch (err) {
+    console.error('Failed to load client details', err);
+    var topH1 = document.querySelector('.top h1');
+    if (topH1) topH1.textContent = 'Client not found';
+  }
+}
+
+function renderClientPage() {
+  if (!currentClient) return;
+
+  var isArchived = currentClient.status === 'ARCHIVED';
+
+  // 1. Header & Title
+  var h1 = document.querySelector('.top h1');
+  if (h1) h1.textContent = currentClient.name;
+
+  var topP = document.querySelector('.top p');
+  if (topP) {
+    topP.innerHTML = '<span class="tag' + (isArchived ? ' no' : '') + '">' + esc(isArchived ? 'Archived' : 'Active') + '</span> · ' +
+      clientProjects.length + ' project' + (clientProjects.length === 1 ? '' : 's');
+  }
+
+  // 2. Archived Notice Banner
+  var ar = $('ar');
+  if (ar) ar.hidden = !isArchived;
+
+  // 3. Render Contacts
+  var ct = $('ct');
+  var ne = $('ne');
+
+  if (clientContacts.length === 0) {
+    if (ne) ne.hidden = false;
+    if (ct) ct.innerHTML = '';
+  } else {
+    if (ne) ne.hidden = true;
+    if (ct) {
+      ct.innerHTML = clientContacts.map(function(c) {
+        var initials = (c.name || 'C')[0].toUpperCase();
+        // Check pending invitations
+        var pendingInvite = clientInvitations.find(function(inv) {
+          return inv.contact_id === c.id && !inv.accepted_at && !inv.revoked_at;
+        });
+
+        var isPending = Boolean(pendingInvite);
+        var statusLabel = isPending ? 'Invite pending' : 'Active';
+        var tagClass = isPending ? 'tag no' : 'tag';
+        var tagStyle = isPending ? 'border-color:var(--line);color:var(--muted)' : '';
+
+        return '<tr data-id="' + esc(c.id) + '" data-revision="' + c.revision + '">' +
+          '<td><div class="who"><span class="av">' + esc(initials) + '</span><div>' + esc(c.name) +
+          '<small>' + esc(c.email) + '</small></div></div></td>' +
+          '<td><span class="' + tagClass + '" style="' + tagStyle + '">' + statusLabel + '</span></td>' +
+          '<td>' + (isPending && pendingInvite ? '<button class="btn sm red" data-invite-id="' + esc(pendingInvite.id) + '"' + (isArchived ? ' disabled' : '') + '>Cancel invite</button>' : '') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+  }
+
+  // Wire Cancel Invite buttons
+  if (ct) {
+    ct.querySelectorAll('button[data-invite-id]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var invId = btn.dataset.inviteId;
+        if (!invId) return;
+        btn.disabled = true;
+        try {
+          await api.delete('/organizations/' + activeOrgId + '/invitations/' + invId);
+          await loadClientDetail();
+        } catch (err) {
+          console.error('Failed to cancel invite', err);
+          btn.disabled = false;
+        }
+      };
+    });
+  }
+
+  // 4. Render Who can decide, per project (#pp)
+  var pp = $('pp');
+  if (pp) {
+    if (clientProjects.length === 0) {
+      pp.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:8px 0">No projects for this client yet.</p>';
+    } else if (clientContacts.length === 0) {
+      pp.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:8px 0">No contacts available to assign.</p>';
+    } else {
+      pp.innerHTML = clientProjects.map(function(p) {
+        var grants = projectGrants[p.id] || [];
+        var grantMap = {};
+        grants.forEach(function(g) {
+          grantMap[g.contact_id] = g;
+        });
+
+        return '<div class="pf"><b style="font-weight:500">' + esc(p.name) + '</b><span class="row2">' +
+          clientContacts.map(function(c) {
+            var existingGrant = grantMap[c.id];
+            var hasAccess = Boolean(existingGrant && existingGrant.status === 'ACTIVE');
+            var firstName = (c.name || '').split(' ')[0] || c.email.split('@')[0];
+
+            return '<label class="row2" style="font-size:14px">' +
+              '<input class="t" type="checkbox"' +
+              ' data-project-id="' + esc(p.id) + '"' +
+              ' data-project-name="' + esc(p.name) + '"' +
+              ' data-contact-id="' + esc(c.id) + '"' +
+              ' data-contact-name="' + esc(c.name) + '"' +
+              ' data-grant-id="' + (existingGrant ? esc(existingGrant.id) : '') + '"' +
+              ' data-revision="' + (existingGrant ? existingGrant.revision : '') + '"' +
+              ' data-role="' + (existingGrant ? esc(existingGrant.role) : 'REVIEWER') + '"' +
+              (hasAccess ? ' checked' : '') +
+              (isArchived ? ' disabled' : '') +
+              ' aria-label="' + esc(c.name) + ' has access to ' + esc(p.name) + '">' +
+              esc(firstName) +
+              '</label>';
+          }).join('') +
+          '</span></div>';
+      }).join('');
+
+      // Wire permission checkboxes
+      pp.querySelectorAll('input.t[type="checkbox"]').forEach(function(chk) {
+        chk.onchange = async function() {
+          var pId = chk.dataset.projectId;
+          var pName = chk.dataset.projectName;
+          var cId = chk.dataset.contactId;
+          var cName = chk.dataset.contactName;
+          var gId = chk.dataset.grantId;
+          var rev = chk.dataset.revision ? parseInt(chk.dataset.revision, 10) : null;
+          var role = chk.dataset.role || 'REVIEWER';
+          var isChecked = chk.checked;
+
+          if (!isChecked) {
+            var confirmed = await (H.askConfirm ? H.askConfirm(
+              'Remove project access for ' + cName + '? They will immediately lose access to ' + pName + '.',
+              { title: 'Remove access?', confirmText: 'Remove access', danger: true }
+            ) : Promise.resolve(window.confirm('Remove project access for ' + cName + '? They will immediately lose access to ' + pName + '.')));
+
+            if (!confirmed) {
+              chk.checked = true;
+              return;
+            }
+          }
+
+          chk.disabled = true;
+          try {
+            if (isChecked) {
+              // Grant access: always REVIEWER (least privilege on reactivation or creation)
+              if (gId && rev !== null) {
+                var updated = await api.patch('/organizations/' + activeOrgId + '/projects/' + pId + '/grants/' + gId, {
+                  contact_id: cId,
+                  role: 'REVIEWER',
+                  status: 'ACTIVE'
+                }, { revision: rev });
+                chk.dataset.revision = updated.revision;
+                chk.dataset.role = updated.role;
+              } else {
+                var created = await api.post('/organizations/' + activeOrgId + '/projects/' + pId + '/grants', {
+                  contact_id: cId,
+                  role: 'REVIEWER',
+                  status: 'ACTIVE'
+                });
+                chk.dataset.grantId = created.id;
+                chk.dataset.revision = created.revision;
+                chk.dataset.role = created.role;
+              }
+            } else {
+              // Revoke access: status REVOKED, keeping existing role
+              if (gId && rev !== null) {
+                var revoked = await api.patch('/organizations/' + activeOrgId + '/projects/' + pId + '/grants/' + gId, {
+                  contact_id: cId,
+                  role: role,
+                  status: 'REVOKED'
+                }, { revision: rev });
+                chk.dataset.revision = revoked.revision;
+                chk.dataset.role = revoked.role;
+              }
+            }
+          } catch (err) {
+            console.error('Failed to update project grant', err);
+            chk.checked = !isChecked; // revert
+            H.handleErrorBanner(err, { bannerId: 'ce' });
+          } finally {
+            chk.disabled = isArchived;
+          }
+        };
+      });
+    }
+  }
+
+  // 5. Activity section (.act)
+  var actUl = document.querySelector('ul.act');
+  if (actUl) {
+    actUl.innerHTML = '<li style="color:var(--muted);font-size:13px">Activity feed is managed across deliverables and reviews.</li>';
+  }
+}
+
+loadClientDetail();

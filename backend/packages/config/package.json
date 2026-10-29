@@ -1,0 +1,13 @@
+{
+  "name": "@devworkspace/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "tsconfig.base.json"
+  ],
+  "scripts": {
+    "build": "node -e \"console.log('Shared TypeScript configuration has no runtime build')\"",
+    "typecheck": "node -e \"JSON.parse(require('node:fs').readFileSync('tsconfig.base.json','utf8'))\""
+  }
+}

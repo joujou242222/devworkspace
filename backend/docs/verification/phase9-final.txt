@@ -1,0 +1,78 @@
+Phase 9 final verification — 2026-10-19, Africa/Cairo
+Workspace: D:\Devworkspace. Authorized local-development verification and recovery only; stop at the Phase 9 review gate.
+Commands ran from the repository root. Raw logs, credentials, manifests and reconciliation output remain under ignored .local/phase9.
+Only final successful reruns are counted below; earlier failures and their corrections are noted separately.
+
+pnpm check | PASS, exit 0 | runtime/boundaries/docs/infra/OpenAPI/environment/lint/TypeScript, 17/17 unit tests and formatting.
+pnpm build | PASS, exit 0 | all packages, API, worker and Next.js production routes after final code fixes.
+pnpm test:native | PASS, exit 0 | 7/7 native lifecycle/readiness tests; owned service stop/restart.
+pnpm test:integration | PASS, exit 0 | 20/20 isolated Phase 1 authentication experiment checks.
+pnpm test:e2e:experiment | PASS, exit 0 | 1/1 isolated Phase 1 browser check.
+pnpm test:phase2 | PASS, exit 0 | 20/20 API/integration checks on the final rerun.
+pnpm test:phase3 | PASS, exit 0 | 27/27 API/integration checks.
+pnpm test:phase4 | PASS, exit 0 | 24/24 API and sandbox checks.
+pnpm test:phase5 | PASS, exit 0 | 21/21 API/integration checks.
+pnpm test:phase6 | PASS, exit 0 | 19/19 API/integration checks, rerun after the PostgreSQL pool error-handler fix.
+pnpm test:phase7 | PASS, exit 0 | 13/13 API/integration checks.
+pnpm test:phase8 | PASS, exit 0 | 2/2 API/integration checks.
+
+pnpm test:e2e | PASS, exit 0 | 1/1 browser check.
+pnpm test:e2e:phase3 | PASS, exit 0 | 2/2 browser checks.
+pnpm test:e2e:phase4 | PASS, exit 0 | 3/3 browser checks.
+pnpm test:e2e:phase5 | PASS, exit 0 | 2/2 browser checks.
+pnpm test:e2e:phase6 | PASS, exit 0 | 1/1 browser check.
+pnpm test:e2e:phase7 | PASS, exit 0 | 1/1 browser check.
+pnpm test:e2e:phase8 | PASS, exit 0 | 5/5 browser checks.
+pnpm test:e2e:phase9 | PASS, exit 0 | 1/1 end-to-end regression check after rebuilding.
+node --test tests/unit/phase9.test.mjs tests/unit/native-readiness.test.mjs | PASS, exit 0 | 3/3 focused checks.
+
+pnpm phase9:workload | PASS | bounded 100-task, 100-milestone, 1,000-document, 10-project run; 18.1 seconds at API concurrency 4.
+Workload observations: API p95 tasks create 44.57 ms, milestone create 36.74 ms, document create 28.47 ms, task page 19.13 ms, document cursor page 53.45 ms, four concurrent task mutations 40.80 ms. Task query EXPLAIN 0.129 ms; authorized document query 0.662 ms before in-memory cursor slicing. Browser pages: task pages 1–4 1,110 ms, milestones 886 ms, documents plus next cursor 975 ms. These are local diagnostic observations, not service-level guarantees.
+Final workload delivery drain: 108/108 completed, pending 0, 108 notifications; observed p95 delivery lag 54.59 seconds across the extended regression run, with source not isolated.
+
+pnpm phase9:db-recovery | PASS | existing API process returned readiness 503 during graceful owned PostgreSQL outage and 200 after native restart; all four app PIDs remained live; same authenticated session and 100-row page-4 read recovered through the original API process. Native start 21.186 seconds; PostgreSQL SQL readiness 419 ms.
+pnpm phase9:snapshot | PASS | cold snapshot snapshot-2026-10-19T103138153Z; 659,864,660 PostgreSQL bytes and 2,744,557 SeaweedFS bytes, total 662,609,217.
+pnpm phase9:restore | PASS | isolated restore restore-2026-10-19T103138153Z-7da3f95d; 51 databases, 65 public tables with matching row counts, 43 migration digests, 51 FORCE RLS tables, zero unvalidated constraints. Exact-version and wrong/missing-object probes ran against the disposable clone.
+pnpm phase9:reconcile | REVIEW | final post-regression source scan: 676 canonical versions / 659 keys; 642/642 references exact; 0 missing, mismatched or conflicting references; 34 unreferenced versions / 17 keys; 0 delete markers. Staging: 311 versions/keys, 0 unknown keys, 0 cleanup tombstones, 1 active/pending intent. No objects were deleted.
+
+Failure and correction record:
+- The first Phase 2 run returned 18/20 because the owned app stack was intentionally stopped for native lifecycle testing. The app was restarted and the actual final product-mode rerun passed 20/20.
+- A Phase 9 browser run exposed stale-page Previous/Next navigation during an in-flight request. The controls now disable while loading; the rebuilt final browser sweep passed. One separate Chromium ERR_TOO_MANY_RETRIES was transient; native readiness was healthy and the unchanged retry passed.
+- The initial live PostgreSQL outage probe exposed an unhandled idle pg pool ECONNRESET and worker/supervisor exit. A sanitized pool error listener was added; the controlled graceful outage/restart test then passed with all app processes retained. The prior abrupt Windows 0x40010004 observation remains unexplained and was not force-reproduced.
+- Snapshot/restore development attempts exposed a live Seaweed lock, headroom recalculation, PostgreSQL log-pipe handling, Promise replacement and null-output handling defects. These were corrected; the final isolated snapshot and restore passed without replacing source data. Failed copies remain in ignored .local/phase9 for operator review.
+- The Phase 9 gate did not independently inject expired ClamAV signatures or each missing processing executable. pg_amcheck.exe was absent from the pinned portable PostgreSQL bundle. SMTP may duplicate after ambiguous remote acceptance; exactly-once delivery is not claimed.
+
+Current review limits: 34 unreferenced canonical versions across 17 keys and one active/pending staging intent remain for operator disposition. The post-suite orphan count rose by two versions and one key relative to the snapshot boundary; exact provenance is not established. No deletion authority was given, so all objects were retained. Snapshot copies are unencrypted and do not form an atomic cross-store snapshot; no cross-machine credential/key recovery, retention or purge policy was validated. Final workload delivery p95 was 54.59 seconds and its cause was not isolated. See ../PHASE_9_REPORT.md and ../traceability/PHASE_9_EVIDENCE.md.
+
+Preservation and diff checks:
+- Baseline inventory: 320 entries; zero missing baseline files. Eleven pre-existing files differ from their recorded Phase 9 starting hashes: AGENTS.md, package.json, README.md, apps/web/tsconfig.tsbuildinfo, apps/web/app/core.tsx, docs/ARCHITECTURE.md, docs/IMPLEMENTATION_PLAN.md, docs/TESTING.md, infra/README.md, packages/database/src/product.ts and scripts/native-infra.mjs. New Phase 9 scripts/tests/reports/evidence are additions outside that original-file comparison.
+- Git index listing still matches the saved 81-entry baseline; no staged changes. This workspace has pre-existing/untracked project files; do not interpret this ledger as a clean-tree claim.
+- git diff --check | PASS, exit 0 | Git emitted only existing CRLF-to-LF normalization warnings.
+- pnpm check | PASS, exit 0 | rerun after adding this ledger.
+
+No commit, push, deployment, canonical-object deletion, database reset or cross-machine backup was performed.
+
+## Targeted closure follow-up — 2026-10-19 UTC
+
+The following evidence supplements the historical run above; the earlier 32/16 snapshot and 34/17 post-regression counts remain recorded as separate observation points.
+
+| Actual command/check | Result |
+| --- | --- |
+| `node scripts/phase9-closure-inspect.mjs` | PASS, read-only source transaction and exact-version GETs at 2026-10-19T20:01:41Z. 676 canonical versions / 659 keys; 642/642 exact refs; 34 unreferenced versions / 17 unreferenced keys; 308 staging versions/keys; three expired `ISSUED` DB intents, no matched staging objects. Sanitized report only. |
+| `sigtool.exe --info` on pinned `main.cvd`, `daily.cvd`, and `bytecode.cvd` | Read-only inspection; each returned `Verification OK`. The isolated stale-CVD probe copied only the existing 2025-09-11 `bytecode.cvd` into the disposable sandbox fixture. |
+| Isolated AppContainer ClamAV probe using the stale CVD copy with `--fail-if-cvd-older-than=2` | Exit 2 and `Virus database is older than 2 days`; installed CVD unchanged. Missing CVD path also failed nonzero; the pinned full database scanned the same clean image successfully. |
+| `node --test tests/phase4/sandbox.test.mjs` | PASS, 10/10 on final rerun, including authentic stale-signature, missing executable, pinned-tool recovery, child timeout/no-result, and synthetic processing-residue refusal. |
+| `node --test tests/unit/phase9-closure.test.mjs` | PASS, 3/3; provenance classification plus interrupted/repeated recovery-copy destination refusal. |
+| `node --test tests/unit/phase9.test.mjs tests/unit/native-readiness.test.mjs tests/unit/phase9-closure.test.mjs` | PASS, 6/6. |
+| `pnpm exec prettier --write` on the changed scripts/tests/reports and `pnpm check` | The first follow-up check stopped at Prettier on the two reports. After formatting, final `pnpm check` PASS, exit 0: runtime, boundaries, 140 documentation links, infra, OpenAPI, environment, lint, typecheck, 20/20 unit tests, and formatting. |
+| `pnpm build` | PASS: Prisma clients generated; database, contracts, server, API, worker and Next.js production routes built. |
+| `pnpm native:status` | PASS; native services ready in 43 ms at check time. API/web/proxy application remained stopped. |
+| `node scripts/phase9-recovery.mjs preflight` | PASS; application stopped; C: 11,175,784,448 bytes free, D: 50,282,283,008 bytes free. No recovery copy was started. |
+| `node --input-type=module -e` tool inventory verification after sandbox tests | PASS; all pinned processing tool hashes still matched and `.local/processing/work` was empty. |
+| `git diff --check` | PASS, exit 0; Git emitted existing CRLF-to-LF normalization warnings only. |
+
+Additional read-only diagnostics: the delivery cohort query found 108/108 completed rows and consumer receipts, all at one attempt; event-to-receipt p95 54,589 ms and event-to-completion p95 54,590 ms. Current `available_at` is advanced by completion/retry functions and is not a historical queue-stage timestamp. `staging_cleanup` had 96 retained records, 21 in the preceding 24 hours; zero of the three current active intents had reached the 24-hour threshold at inspection. Windows Application events 1000/1001 near the PostgreSQL recovery were from CodexSandboxService and did not identify PostgreSQL; Kernel-Power 506/507 were observed shortly afterward, with no 41/6008/1074 in the interval. No cause is assigned.
+
+Preservation comparison after the follow-up: 320 baseline files, zero missing, zero migration-hash changes; 12 original baseline files differ (the 11 already recorded above plus the edited Phase 4 sandbox test); Git index has 81 entries and zero staged changes. No source database rows or canonical/staging objects were written or deleted by the follow-up. One test-only recovery-copy fixture was created beneath `.local/phase9` and its exact fixture directory was removed by the test. No existing snapshot/restore directory was changed.
+
+Closure status remains **PARTIAL**. Refer to `../PHASE_9_CLOSURE_REPORT.md` for per-object provenance, staging disposition, backup/key choices, T/V status and unresolved operator decisions.

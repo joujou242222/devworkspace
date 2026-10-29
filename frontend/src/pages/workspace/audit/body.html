@@ -1,0 +1,18 @@
+
+<div class="app" id="app">
+<aside class="side dk">
+  <a class="brand" href="/" aria-label="Devworkspace home"><span class="lgm" aria-hidden="true"><i></i><i></i><i></i></span><span class="lgw"><span class="d">Dev</span><span class="w">workspace</span></span></a><i class="rule" aria-hidden="true"></i>
+  <nav aria-label="Workspace"><a href="/workspace/dashboard"><span>Dashboard</span></a><a href="/workspace/projects"><span>Projects</span></a><a href="/workspace/my-tasks"><span>My tasks</span></a><a href="/workspace/clients"><span>Clients</span></a><a href="/workspace/reviews"><span>Review center</span></a><a href="/workspace/documents"><span>Documents</span></a><a href="/workspace/reports"><span>Reports</span></a><a href="/workspace/team"><span>Team</span></a><a href="/workspace/audit" aria-current="page"><span>Audit log</span></a><a href="/workspace/settings"><span>Settings</span></a></nav>
+  <button class="tog" id="tog" aria-label="Collapse sidebar">&larr;</button>
+</aside>
+<main class="page">
+<div class="util"><button class="ib" id="bell" aria-expanded="false" aria-controls="dr"><i class="dot" id="bd"></i>Notifications</button><a class="ib" href="/workspace/account"><span class="av" style="width:28px;height:28px;font-size:12px">SA</span>Sara</a>
+<div class="drawer" id="dr" hidden><h2 style="border:0;padding:0;font-size:20px;margin-bottom:6px">Notifications</h2><ul class="nl" id="dl"></ul><div class="ft"><a href="/workspace/notifications">View all</a><a href="/workspace/account#prefs">Preferences</a></div></div></div>
+<div class="top"><div><h1>Audit log</h1><p>A permanent record. Entries can’t be edited or deleted.</p></div></div><div class="fl"><label>Type<select class="sel" id="ft"><option>All</option><option>Members</option><option>Projects</option><option>Files</option><option>Reviews</option><option>Settings</option></select></label>
+<label>Who<select class="sel" id="fw"><option>All</option><option>Sara Adel</option><option>Omar Hassan</option><option>Layla Samir</option></select></label>
+<label>From<input type="date" id="fa"></label><label>To<input type="date" id="fb"></label></div>
+<div class="tblw"><table class="tbl"><thead><tr><th>Time</th><th>Who</th><th>Action</th><th>On</th><th>Result</th></tr></thead><tbody id="tb"></tbody></table></div>
+<p class="empty" id="em" hidden><b>No events match these filters</b><button class="link" id="cl" style="background:none;border:0;text-decoration:underline;cursor:pointer;font:inherit">Clear filters</button></p>
+<div class="row2" style="margin-top:18px"><button class="btn sm" id="pv">Previous</button><span id="pg"></span><button class="btn sm" id="nx">Next</button></div>
+</main></div>
+

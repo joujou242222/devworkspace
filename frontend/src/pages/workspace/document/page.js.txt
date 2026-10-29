@@ -1,0 +1,634 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+function askText(title, val, cb, label) {
+  var d = document.createElement('dialog'), id = 'at' + Date.now();
+  d.innerHTML = '<form method="dialog"><h2></h2><div class="fld" style="margin-top:16px"><label for="' + id + '">' + (label || 'Name') + '</label><input id="' + id + '" type="text"></div><div class="row2"><button class="btn lime" type="submit">Save</button><button class="btn" type="button" data-n>Cancel</button></div></form>';
+  document.body.appendChild(d);
+  d.querySelector('h2').textContent = title;
+  var i = d.querySelector('input');
+  i.value = val;
+  d.querySelector('[data-n]').onclick = function() { d.close(); };
+  d.querySelector('form').onsubmit = function(e) {
+    var v = i.value.trim();
+    if (!v) { e.preventDefault(); i.focus(); return; }
+    cb(v);
+  };
+  d.addEventListener('close', function() { d.remove(); });
+  d.showModal();
+  i.select();
+}
+
+function askConfirm(msg, cb) {
+  var d = document.createElement('dialog');
+  d.innerHTML = '<form method="dialog"><h2>Please confirm</h2><p style="margin-top:12px"></p><div class="row2" style="margin-top:16px"><button class="btn lime" type="submit">Confirm</button><button class="btn" type="button" data-n>Cancel</button></div></form>';
+  document.body.appendChild(d);
+  d.querySelector('p').textContent = msg;
+  d.querySelector('[data-n]').onclick = function() { d.close(); };
+  d.querySelector('form').onsubmit = function() { cb(); };
+  d.addEventListener('close', function() { d.remove(); });
+  d.showModal();
+}
+
+function isValidHttpUrl(val) {
+  if (!val || typeof val !== 'string' || val.length > 2048) return false;
+  try {
+    var u = new URL(val);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && !u.username && !u.password && !/[\u0000-\u0020]/.test(val);
+  } catch (_) {
+    return false;
+  }
+}
+
+function mergeSpans(spans) {
+  var merged = [];
+  for (var i = 0; i < spans.length; i++) {
+    var span = spans[i];
+    if (!span.text) continue;
+    if (merged.length > 0) {
+      var prev = merged[merged.length - 1];
+      var sameBold = Boolean(prev.bold) === Boolean(span.bold);
+      var sameItalic = Boolean(prev.italic) === Boolean(span.italic);
+      var sameHref = (prev.href || null) === (span.href || null);
+      if (sameBold && sameItalic && sameHref) {
+        prev.text = (prev.text + span.text).slice(0, 2000);
+        continue;
+      }
+    }
+    var entry = { text: span.text.slice(0, 2000) };
+    if (span.bold) entry.bold = true;
+    if (span.italic) entry.italic = true;
+    if (span.href && isValidHttpUrl(span.href)) entry.href = span.href;
+    merged.push(entry);
+  }
+  return merged;
+}
+
+function extractSpans(element) {
+  var rawSpans = [];
+
+  function walk(node, style) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      var text = node.textContent;
+      if (text) {
+        var span = { text: text.slice(0, 2000) };
+        if (style.bold) span.bold = true;
+        if (style.italic) span.italic = true;
+        if (style.href) span.href = style.href;
+        rawSpans.push(span);
+      }
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    var tag = node.tagName.toUpperCase();
+    if (tag === 'BR') return;
+
+    var nextStyle = { bold: style.bold, italic: style.italic, href: style.href };
+    if (tag === 'B' || tag === 'STRONG' || node.style?.fontWeight === 'bold' || parseInt(node.style?.fontWeight, 10) >= 700) {
+      nextStyle.bold = true;
+    }
+    if (tag === 'I' || tag === 'EM' || node.style?.fontStyle === 'italic') {
+      nextStyle.italic = true;
+    }
+    if (tag === 'A') {
+      var href = node.getAttribute('href');
+      if (href && isValidHttpUrl(href)) {
+        nextStyle.href = href;
+      }
+    }
+
+    for (var i = 0; i < node.childNodes.length; i++) {
+      walk(node.childNodes[i], nextStyle);
+    }
+  }
+
+  walk(element, {});
+  return mergeSpans(rawSpans).slice(0, 100);
+}
+
+function domToBlocks(container) {
+  var blocks = [];
+  var pendingParagraphSpans = [];
+
+  function flushPendingParagraph() {
+    if (pendingParagraphSpans.length > 0) {
+      var merged = mergeSpans(pendingParagraphSpans);
+      if (merged.length > 0) {
+        blocks.push({ type: 'paragraph', spans: merged });
+      }
+      pendingParagraphSpans = [];
+    }
+  }
+
+  for (var i = 0; i < container.childNodes.length; i++) {
+    var node = container.childNodes[i];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      var text = node.textContent;
+      if (text) {
+        pendingParagraphSpans.push({ text: text.slice(0, 2000) });
+      }
+      continue;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+    var tag = node.tagName.toUpperCase();
+
+    if (tag === 'H1' || tag === 'H2' || tag === 'H3') {
+      flushPendingParagraph();
+      var level = tag === 'H1' ? 1 : tag === 'H3' ? 3 : 2;
+      var spans = extractSpans(node);
+      blocks.push({
+        type: 'heading',
+        level: level,
+        spans: spans.length > 0 ? spans : [{ text: '' }]
+      });
+    } else if (tag === 'UL') {
+      flushPendingParagraph();
+      var uItems = [];
+      var uLis = node.querySelectorAll('li');
+      if (uLis.length > 0) {
+        uLis.forEach(function(li) {
+          var s = extractSpans(li);
+          uItems.push(s.length > 0 ? s : [{ text: '' }]);
+        });
+      } else {
+        var s = extractSpans(node);
+        uItems.push(s.length > 0 ? s : [{ text: '' }]);
+      }
+      if (uItems.length > 0) {
+        blocks.push({ type: 'bulletList', items: uItems.slice(0, 100) });
+      }
+    } else if (tag === 'OL') {
+      flushPendingParagraph();
+      var oItems = [];
+      var oLis = node.querySelectorAll('li');
+      if (oLis.length > 0) {
+        oLis.forEach(function(li) {
+          var s = extractSpans(li);
+          oItems.push(s.length > 0 ? s : [{ text: '' }]);
+        });
+      } else {
+        var s = extractSpans(node);
+        oItems.push(s.length > 0 ? s : [{ text: '' }]);
+      }
+      if (oItems.length > 0) {
+        blocks.push({ type: 'orderedList', items: oItems.slice(0, 100) });
+      }
+    } else if (tag === 'P' || tag === 'DIV' || tag === 'BLOCKQUOTE') {
+      flushPendingParagraph();
+      var hasBlockChildren = Array.from(node.children).some(function(c) {
+        return ['H1', 'H2', 'H3', 'UL', 'OL', 'P', 'DIV'].includes(c.tagName.toUpperCase());
+      });
+      if (hasBlockChildren) {
+        var subBlocks = domToBlocks(node);
+        for (var sb = 0; sb < subBlocks.length; sb++) blocks.push(subBlocks[sb]);
+      } else {
+        var pSpans = extractSpans(node);
+        blocks.push({
+          type: 'paragraph',
+          spans: pSpans.length > 0 ? pSpans : [{ text: '' }]
+        });
+      }
+    } else {
+      var inSpans = extractSpans(node);
+      for (var s = 0; s < inSpans.length; s++) pendingParagraphSpans.push(inSpans[s]);
+    }
+  }
+
+  flushPendingParagraph();
+
+  if (blocks.length === 0) {
+    blocks.push({ type: 'paragraph', spans: [{ text: '' }] });
+  }
+
+  return blocks.slice(0, 200);
+}
+
+function appendSpans(parent, spans) {
+  if (!spans || !Array.isArray(spans)) return;
+  for (var i = 0; i < spans.length; i++) {
+    var span = spans[i];
+    if (span.text == null || span.text === '') continue;
+    var node = document.createTextNode(span.text);
+    var el = node;
+    if (span.italic) {
+      var it = document.createElement('i');
+      it.appendChild(el);
+      el = it;
+    }
+    if (span.bold) {
+      var b = document.createElement('b');
+      b.appendChild(el);
+      el = b;
+    }
+    if (span.href && isValidHttpUrl(span.href)) {
+      var a = document.createElement('a');
+      a.href = span.href;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.appendChild(el);
+      el = a;
+    }
+    parent.appendChild(el);
+  }
+}
+
+function renderContentToDom(content, container) {
+  container.innerHTML = '';
+  if (!content || !Array.isArray(content.blocks) || content.blocks.length === 0) {
+    var p = document.createElement('p');
+    p.appendChild(document.createElement('br'));
+    container.appendChild(p);
+    return;
+  }
+
+  for (var i = 0; i < content.blocks.length; i++) {
+    var block = content.blocks[i];
+    if (block.type === 'heading') {
+      var tag = block.level === 1 ? 'h1' : block.level === 3 ? 'h3' : 'h2';
+      var el = document.createElement(tag);
+      appendSpans(el, block.spans);
+      container.appendChild(el);
+    } else if (block.type === 'paragraph') {
+      var p = document.createElement('p');
+      appendSpans(p, block.spans);
+      if (!p.childNodes.length) p.appendChild(document.createElement('br'));
+      container.appendChild(p);
+    } else if (block.type === 'bulletList') {
+      var ul = document.createElement('ul');
+      var items = block.items || [];
+      for (var j = 0; j < items.length; j++) {
+        var li = document.createElement('li');
+        appendSpans(li, items[j]);
+        ul.appendChild(li);
+      }
+      container.appendChild(ul);
+    } else if (block.type === 'orderedList') {
+      var ol = document.createElement('ol');
+      var oItems = block.items || [];
+      for (var k = 0; k < oItems.length; k++) {
+        var oLi = document.createElement('li');
+        appendSpans(oLi, oItems[k]);
+        ol.appendChild(oLi);
+      }
+      container.appendChild(ol);
+    }
+  }
+}
+
+function contentToPlainText(content) {
+  if (!content || !Array.isArray(content.blocks)) return '';
+  return content.blocks.map(function(block) {
+    if (block.type === 'heading' || block.type === 'paragraph') {
+      return (block.spans || []).map(function(s) { return s.text || ''; }).join('');
+    }
+    if (block.type === 'bulletList' || block.type === 'orderedList') {
+      return (block.items || []).map(function(spans) {
+        return '• ' + (spans || []).map(function(s) { return s.text || ''; }).join('');
+      }).join('\n');
+    }
+    return '';
+  }).filter(Boolean).join('\n\n');
+}
+
+window.documentEditor = {
+  renderContentToDom: renderContentToDom,
+  domToBlocks: domToBlocks,
+  contentToPlainText: contentToPlainText
+};
+
+// State
+var docId = null;
+var projectId = null;
+var orgId = null;
+var currentRevision = 1;
+var isSaving = false;
+var hasPendingSave = false;
+var dirty = false;
+var saveTimer = null;
+var isReadOnly = false;
+
+function setReadOnly(message) {
+  isReadOnly = true;
+  var ro = $('ro');
+  if (ro) {
+    ro.hidden = false;
+    ro.style.display = '';
+    if (message) ro.textContent = message;
+  }
+  var ed = $('ed');
+  if (ed) ed.contentEditable = 'false';
+  var ti = $('ti');
+  if (ti) ti.readOnly = true;
+  var ar = $('ar');
+  if (ar) {
+    ar.hidden = true;
+    ar.style.display = 'none';
+  }
+  var tbar = document.querySelector('.tbar');
+  if (tbar) {
+    tbar.hidden = true;
+    tbar.style.display = 'none';
+  }
+  var ss = $('ss');
+  if (ss) ss.textContent = 'Read-only';
+}
+
+function handleConflict() {
+  isReadOnly = true;
+  var cf = $('cf');
+  if (cf) {
+    cf.hidden = false;
+    cf.style.display = '';
+  }
+  var dr2 = $('dr2');
+  var ed = $('ed');
+  if (dr2 && ed) dr2.textContent = ed.innerText || ed.textContent;
+  if (ed) ed.contentEditable = 'false';
+  var ti = $('ti');
+  if (ti) ti.readOnly = true;
+  var ar = $('ar');
+  if (ar) {
+    ar.hidden = true;
+    ar.style.display = 'none';
+  }
+  var tbar = document.querySelector('.tbar');
+  if (tbar) {
+    tbar.hidden = true;
+    tbar.style.display = 'none';
+  }
+  var ss = $('ss');
+  if (ss) ss.textContent = 'Conflict';
+
+  if (orgId && projectId && docId) {
+    api.get('/organizations/' + orgId + '/projects/' + projectId + '/documents/' + docId)
+      .then(function(fresh) {
+        if (fresh && fresh.content && $('sv')) {
+          $('sv').textContent = contentToPlainText(fresh.content);
+        }
+      })
+      .catch(function(_) {});
+  }
+}
+
+async function triggerSave() {
+  if (isReadOnly) return;
+  if (isSaving) {
+    hasPendingSave = true;
+    return;
+  }
+  isSaving = true;
+  hasPendingSave = false;
+
+  try {
+    var blocks = domToBlocks($('ed'));
+    if (blocks.length > 200) {
+      $('ss').textContent = 'Too many blocks (max 200)';
+      return;
+    }
+    var content = { version: 1, blocks: blocks };
+    var jsonStr = JSON.stringify(content);
+    if (jsonStr.length > 100000) {
+      $('ss').textContent = 'Document too large';
+      return;
+    }
+    var title = $('ti').value.trim() || 'Untitled document';
+
+    var updated = await api.patch(
+      '/organizations/' + orgId + '/projects/' + projectId + '/documents/' + docId,
+      { title: title, content: content },
+      { revision: currentRevision }
+    );
+
+    currentRevision = updated.revision;
+    dirty = false;
+    $('ss').textContent = 'Saved';
+  } catch (err) {
+    if (err.status === 412 || err.code === 'STALE_REVISION') {
+      dirty = false;
+      handleConflict();
+      return;
+    } else if (err.status === 409 || err.code === 'CONFLICT') {
+      dirty = false;
+      setReadOnly('Document or project is read-only.');
+      return;
+    } else if (err.status === 403 || err.code === 'FORBIDDEN') {
+      dirty = false;
+      setReadOnly('You do not have permission to edit this document.');
+      return;
+    } else {
+      $('ss').textContent = 'Error saving';
+      console.error('Document save failed:', err);
+    }
+  } finally {
+    isSaving = false;
+    if (hasPendingSave) {
+      triggerSave();
+    }
+  }
+}
+
+function markDirty() {
+  if (isReadOnly) return;
+  dirty = true;
+  $('ss').textContent = 'Saving…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(triggerSave, 800);
+}
+
+// Page initialization
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  var tog = $('tog');
+  if (tog) {
+    tog.onclick = function() { $('app').classList.toggle('min'); };
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  docId = params.get('id');
+  projectId = params.get('project') || params.get('projectId') || params.get('project_id');
+
+  if (location.hash === '#readonly') {
+    setReadOnly();
+    return;
+  }
+  if (location.hash === '#conflict') {
+    handleConflict();
+    return;
+  }
+
+  if (!docId) {
+    $('ss').textContent = 'No document selected';
+    return;
+  }
+
+  orgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!orgId) {
+    var principals = await api.get('/me/principals');
+    if (principals && principals.items && principals.items.length) {
+      orgId = principals.items[0].organization_id;
+    }
+  }
+
+  // Load document list if projectId was not supplied in URL
+  if (!projectId) {
+    try {
+      var listRes = await api.get('/organizations/' + orgId + '/documents');
+      var match = (listRes.items || []).find(function(d) { return d.id === docId; });
+      if (match) {
+        projectId = match.project_id;
+      }
+    } catch (_) {}
+  }
+
+  if (!projectId) {
+    $('ss').textContent = 'Project not found';
+    return;
+  }
+
+  // Load project details for breadcrumb
+  try {
+    var proj = await api.get('/organizations/' + orgId + '/projects/' + projectId);
+    if (proj && proj.name && $('bp')) {
+      $('bp').textContent = proj.name;
+    }
+    if (proj && (proj.status === 'ARCHIVED' || proj.status === 'COMPLETED')) {
+      setReadOnly('This project is ' + proj.status.toLowerCase() + '. Document is read-only.');
+    }
+  } catch (_) {}
+
+  // Fetch document
+  try {
+    var doc = await api.get('/organizations/' + orgId + '/projects/' + projectId + '/documents/' + docId);
+    $('ti').value = doc.title || '';
+    currentRevision = doc.revision;
+
+    renderContentToDom(doc.content, $('ed'));
+    $('ss').textContent = 'Saved';
+
+    if (doc.status === 'ARCHIVED') {
+      setReadOnly('This document is archived. Only active documents can be edited.');
+    }
+  } catch (err) {
+    if (err.status === 403 || err.code === 'FORBIDDEN') {
+      setReadOnly('You do not have access to this document.');
+    } else {
+      $('ss').textContent = 'Failed to load document';
+    }
+    return;
+  }
+
+  // Check role / access for archive button and editing rights
+  try {
+    var docListMeta = await api.get('/organizations/' + orgId + '/documents?project_id=' + projectId + '&limit=1');
+    if (docListMeta && !docListMeta.canWrite) {
+      setReadOnly();
+    }
+    if (docListMeta && !docListMeta.manager && $('ar')) {
+      $('ar').hidden = true;
+    }
+  } catch (_) {
+    var isOrgAdmin = session.user?.role === 'OWNER' || session.user?.role === 'ADMIN';
+    if (!isOrgAdmin && $('ar')) {
+      $('ar').hidden = true;
+    }
+  }
+
+  // Set up listeners
+  $('ed').oninput = $('ti').oninput = markDirty;
+
+  document.querySelectorAll('[data-c]').forEach(function(b) {
+    b.onmousedown = function(e) { e.preventDefault(); };
+    b.onclick = function() {
+      if (isReadOnly) return;
+      var c = b.dataset.c.split(':');
+      if (c[0] === 'link') {
+        var sl = getSelection(), rg = sl.rangeCount ? sl.getRangeAt(0).cloneRange() : null;
+        if (!rg || rg.collapsed || !$('ed').contains(rg.commonAncestorContainer)) {
+          $('ss').textContent = 'Select some text to link';
+          setTimeout(function() { $('ss').textContent = dirty ? 'Saving…' : 'Saved'; }, 1800);
+          return;
+        }
+        askText('Add link', 'https://', function(u) {
+          var url = u.trim();
+          if (!url) return;
+          if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+            url = 'https://' + url;
+          }
+          if (!isValidHttpUrl(url)) {
+            $('ss').textContent = 'Only HTTP(S) links allowed';
+            setTimeout(function() { $('ss').textContent = dirty ? 'Saving…' : 'Saved'; }, 1800);
+            return;
+          }
+          $('ed').focus();
+          var s2 = getSelection();
+          s2.removeAllRanges();
+          s2.addRange(rg);
+          document.execCommand('createLink', false, url);
+          markDirty();
+        }, 'Link address');
+        return;
+      }
+      document.execCommand(c[0], false, c[1] || null);
+      $('ed').focus();
+      markDirty();
+    };
+  });
+
+  $('ed').addEventListener('paste', function(e) {
+    if (isReadOnly) return;
+    e.preventDefault();
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+
+  window.addEventListener('beforeunload', function(e) {
+    if (dirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  if ($('ar')) {
+    $('ar').onclick = function() {
+      if (isReadOnly) return;
+      askConfirm('Archive this document?', async function() {
+        try {
+          await api.post('/organizations/' + orgId + '/projects/' + projectId + '/documents/' + docId + '/archive', {}, {
+            revision: currentRevision
+          });
+          dirty = false;
+          window.location.href = '/workspace/documents';
+        } catch (err) {
+          if (err.status === 412 || err.code === 'STALE_REVISION') {
+            handleConflict();
+          } else {
+            alert('Failed to archive: ' + (err.message || err.code));
+          }
+        }
+      });
+    };
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

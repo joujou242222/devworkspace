@@ -1,0 +1,46 @@
+
+<header class="top"><a class="brand" href="/" aria-label="Devworkspace home"><span class="lgm" aria-hidden="true"><i></i><i></i><i></i></span><span class="lgw" aria-hidden="true"><span class="d">Dev</span><span class="w">workspace</span></span></a><i class="rule" aria-hidden="true"></i></header>
+
+<div class="gbd" aria-hidden="true">
+  <i class="gb" style="--i:0;--x:4%;--w:34%"></i><i class="gb" style="--i:1;--x:22%;--w:46%"></i><i class="gb" style="--i:2;--x:10%;--w:30%"></i>
+  <i class="gb" style="--i:3;--x:40%;--w:44%"></i><i class="gb" style="--i:4;--x:18%;--w:36%"></i><i class="gb" style="--i:5;--x:52%;--w:38%"></i>
+</div>
+<i class="scan" aria-hidden="true"></i>
+
+<main>
+  <section class="hero" data-s="loading">
+    <span class="bw2"><i class="ring" aria-hidden="true"></i><span class="lgm big" aria-hidden="true"><i></i><i></i><i></i></span></span>
+    <p class="pill" role="status" aria-live="polite"><b aria-hidden="true"></b>Loading your data…</p>
+    <div class="steps" aria-hidden="true"><div class="st"><span>Gathering your tasks</span><span>Placing files on the timeline</span><span>Syncing your teammates</span><span>Almost there</span></div></div>
+  </section>
+
+  <section class="hero" data-s="error">
+    <span class="bw2"><i class="ring" aria-hidden="true"></i><span class="lgm big" aria-hidden="true"><i></i><i></i><i></i></span></span>
+    <h2 role="alert">We couldn’t load your data</h2>
+    <p>Something went wrong on the way. Give it another go.</p>
+    <div class="row"><button class="btn lime" type="button" onclick="setView('loading');setTimeout(()=>setView('error'),1600)">Reload data</button><a class="btn ghost" href="/login">Log in again</a></div>
+  </section>
+
+  <section class="hero" data-s="revoked">
+    <span class="bw2"><i class="ring" aria-hidden="true"></i><span class="lgm big" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><i></i><i></i><i></i></span></span>
+    <h2>Access unavailable</h2>
+    <p>Your access to this page has changed.<br>Anything you wrote is saved as a draft.</p>
+    <div class="row"><a class="btn lime" href="/workspace/dashboard">Back to safety</a></div>
+  </section>
+
+  <section class="hero" data-s="blocks">
+    <div class="grid">
+      <div class="blk"><b>Tasks</b><i class="ln" style="--w:80%"></i><i class="ln" style="--w:55%"></i></div>
+      <div class="blk" id="f"></div>
+      <div class="blk"><b>Reviews</b><i class="ln" style="--w:65%"></i><i class="ln" style="--w:40%"></i></div>
+      <div class="blk"><b>Activity</b><i class="ln" style="--w:72%"></i><i class="ln" style="--w:50%"></i></div>
+    </div>
+  </section>
+</main>
+
+<div class="demo" role="group" aria-label="State preview only">
+  <button data-v="loading" aria-pressed="true">Loading</button><button data-v="error" aria-pressed="false">Load failed</button>
+  <button data-v="revoked" aria-pressed="false">Access revoked</button><button data-v="blocks" aria-pressed="false">One block failed</button>
+</div>
+
+

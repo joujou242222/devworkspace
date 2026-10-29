@@ -1,0 +1,148 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var allNotifications = [];
+var isUnreadFilter = true;
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function updateBellDot(unreadCount) {
+  var bd = $('bd');
+  if (bd) {
+    bd.style.display = unreadCount > 0 ? '' : 'none';
+  }
+}
+
+function renderNotificationItem(n) {
+  var isUnread = !n.read_at;
+  var timeText = H && H.formatRelativeTime ? H.formatRelativeTime(n.occurred_at) : (n.occurred_at || '');
+  var href = n.href || '#';
+
+  return '<li class="' + (isUnread ? 'u' : '') + '" data-id="' + esc(n.id) + '">' +
+    '<a href="' + esc(href) + '" style="text-decoration:none;color:inherit;display:block">' +
+    '<b>' + esc(n.summary) + '</b>' +
+    '<small>' + esc(timeText) + '</small>' +
+    '</a>' +
+    '</li>';
+}
+
+function render() {
+  var filtered = allNotifications.filter(function(n) {
+    return isUnreadFilter ? !n.read_at : !!n.read_at;
+  });
+
+  var nl = $('nl');
+  var ne = $('ne');
+  var nt = $('nt');
+  var tu = $('tu');
+  var tr = $('tr');
+  var ma = $('ma');
+
+  if (nl) {
+    nl.innerHTML = filtered.map(renderNotificationItem).join('');
+
+    // Wire unread clicks
+    nl.querySelectorAll('li.u a').forEach(function(link) {
+      link.onclick = async function(e) {
+        var li = link.closest('li[data-id]');
+        if (!li) return;
+        var notifId = li.dataset.id;
+        try {
+          await api.post('/organizations/' + activeOrgId + '/notifications/' + notifId + '/read', {});
+          var target = allNotifications.find(function(x) { return x.id === notifId; });
+          if (target) target.read_at = new Date().toISOString();
+        } catch (_) {}
+      };
+    });
+  }
+
+  if (ne) ne.hidden = filtered.length > 0;
+  if (nt) nt.textContent = isUnreadFilter ? 'You’re all caught up' : 'No read notifications';
+
+  if (tu) tu.setAttribute('aria-pressed', String(isUnreadFilter));
+  if (tr) tr.setAttribute('aria-pressed', String(!isUnreadFilter));
+
+  var unreadRemaining = allNotifications.filter(function(n) { return !n.read_at; }).length;
+  if (ma) ma.disabled = unreadRemaining === 0;
+  updateBellDot(unreadRemaining);
+}
+
+async function loadNotifications() {
+  try {
+    var session = await auth.init();
+    activeOrgId = auth.getActiveOrgId();
+    if (!activeOrgId && session.principals && session.principals.length > 0) {
+      activeOrgId = session.principals[0].organizationId;
+    }
+
+    if (!activeOrgId) return;
+
+    if (H && H.loadHeader) {
+      await H.loadHeader();
+    }
+
+    // Load paginated notifications
+    var result = await api.get('/organizations/' + activeOrgId + '/notifications?limit=100&page=1');
+    allNotifications = Array.isArray(result?.items) ? result.items : [];
+
+    render();
+  } catch (err) {
+    if (H && H.handlePageAccessError) {
+      H.handlePageAccessError(err, 'app');
+    }
+  }
+}
+
+// Wire tabs
+var tu = $('tu');
+if (tu) {
+  tu.onclick = function() {
+    isUnreadFilter = true;
+    render();
+  };
+}
+
+var tr = $('tr');
+if (tr) {
+  tr.onclick = function() {
+    isUnreadFilter = false;
+    render();
+  };
+}
+
+// Wire Mark all as read
+var ma = $('ma');
+if (ma) {
+  ma.onclick = async function() {
+    ma.disabled = true;
+    try {
+      await api.post('/organizations/' + activeOrgId + '/notifications/read-all', {});
+      var now = new Date().toISOString();
+      allNotifications.forEach(function(n) {
+        if (!n.read_at) n.read_at = now;
+      });
+      render();
+    } catch (err) {
+      ma.disabled = false;
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+}
+
+// Initial load
+loadNotifications();

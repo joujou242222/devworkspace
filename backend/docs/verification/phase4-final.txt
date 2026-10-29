@@ -1,0 +1,80 @@
+DevWorkspace Phase 4 verification — 2026-10-17, native Windows 10
+Working directory: D:\Devworkspace
+Status: PASS for Phase 4; awaiting user review, Phase 5 unauthorized.
+
+Executed checks with successful terminal exits:
+pnpm check: exit 0; runtime/boundaries/docs/infra/OpenAPI/env/lint/typecheck,
+  9 unit tests and formatting.
+pnpm build: exit 0; database client generation and all workspace production builds.
+pnpm test:native: exit 0; 7 passed, 0 failed.
+pnpm test:phase2: exit 0; 20 passed, 0 failed.
+pnpm test:phase3: exit 0; 27 passed, 0 failed.
+pnpm test:phase4: exit 0; 24 passed, 0 failed, 0 skipped/cancelled.
+  16 real API/database/storage/worker tests; 8 real AppContainer/scanner/renderer tests.
+pnpm test:e2e: exit 0; 1 passed.
+pnpm test:e2e:phase3: exit 0; 2 passed.
+pnpm test:e2e:phase4: exit 0; 3 passed, including pagination and organization logo.
+pnpm test:integration: exit 0; 20 retained Phase 1 integration tests passed.
+pnpm test:e2e:experiment: exit 0; 1 retained Phase 1 browser journey passed.
+pnpm --filter @devworkspace/web build: exit 0 after final folder control correction.
+pnpm check: final repeat exit 0, including all 9 unit tests.
+Final lint, documentation, formatting and git diff --check: exit 0.
+Product restored with pnpm dev; real ready event reports phase4-private-files.
+
+V03 local storage observations:
+- Real signed PUT 200; same capability replay 412; twelve conditional races each
+  yielded one 200 and one 412, with original bytes retained.
+- Length/checksum/MIME/signature/expiration tampering rejected; actual HTTPS proxy
+  preserves signed path, Host/query/headers and binds If-None-Match.
+- Raw filer anonymous read originally 200; project-local JWT configuration changed
+  it to 401. Authenticated readiness continues to work.
+- Runtime canonical version deletion 403; worker bucket-policy replacement and
+  versioning configuration changes 403.
+- Trusted unconditional newer storage version leaves original database-pinned
+  download bytes unchanged. Database version/asset identity mutation denied.
+- AWS s3:if-none-match bucket policy condition unsupported in SeaweedFS 4.48;
+  no claim of AWS policy equivalence or per-object legal hold.
+
+V05 Phase 4 isolation observations:
+- Actual token: AppContainer=true, Elevated=false, zero capability SIDs.
+- No inherited handles; explicit credential-free child environment.
+- Loopback TCP/UDP listeners reachable by positive host controls; sandbox sends
+  deliver zero connections/datagrams. Private/Internet TCP denied.
+- Unrelated file, project-secret read, tool write, default package-profile write,
+  sibling work creation and job-directory deletion negatives pass.
+- Real wall timeout, memory and temporary disk-limit negatives pass; process Job
+  limits descendants and terminates on close. Disk monitor is sampled (100 ms).
+- Real ClamAV clean scan and harmless hash-signature detection inside isolation.
+- Official archive SHA256:
+  57b6fd1d60cd87bafe800f97407ecdef0576d36b3900b8b7abcfbbabe88295fd
+- FreshClam official databases loaded/tested: main 63, daily 28155, bytecode 339.
+- Real PNG/JPEG normalization and PDF rasterization; malformed, active-content,
+  excessive page/pixel/memory/disk fixtures rejected.
+- Sandbox rollback and recreation actually passed twice. Unknown profile adoption
+  is rejected; existing profile create-collision negative tested.
+- Worker instances serialize processing via database advisory lock; nonempty work
+  root fails closed after a hard crash. Operator recovery is in infra/README.md.
+- No Windows upgrade, service, global PATH/firewall, Docker or WSL changes.
+
+Approved V08 staging subset:
+- Expiration +24h boundaries; active references/jobs/finalization protection;
+  exact-key deletion only, no bucket listing/deletion.
+- SQL failure after actual remote DELETE rolls back tombstone/audit; missing-object
+  retry and concurrent cleanup commit one audited result.
+- Canonical objects, immutable versions and active images remain protected.
+- Broader retention/canonical orphan recovery/backup-restore remains later.
+
+Failures/corrections are recorded in PHASE_4_REPORT.md section 11. In particular,
+the intermediate 23/24 Phase 4 run was superseded by the corrected 24/24 full run.
+Browser files run through separate pinned aliases because the retained harness
+shares a pool that is ended in each file's afterAll.
+
+Preservation:
+- 153 baseline files: 121 unchanged, 32 intentionally changed, zero missing.
+- All 12 original migrations (0001–0012) unchanged; new 0013–0020 additive.
+- 497 old lockfile package records unchanged, zero missing; 13 new package records.
+- Existing DB/storage data and preexisting Git work retained; no reset/clean,
+  commits, pushes or deployments.
+- SHA256 source comparison: docs/verification/phase4-files.json.
+- Private runtime logs, credentials, tool copies/CVDs and synthetic data remain
+  ignored under .local; they are not copied into this evidence file.

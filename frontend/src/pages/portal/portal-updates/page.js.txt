@@ -1,0 +1,228 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activePrincipalId = null;
+var selectedProjectId = null;
+var clientPrincipals = [];
+var projectsList = [];
+var updatesData = [];
+var openReview = null;
+var notifications = [];
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function renderNotifications() {
+  var bd = $('bd');
+  var dl = $('dl');
+  var bell = $('bell');
+  var dr = $('dr');
+  if (!bell || !dr) return;
+
+  var unread = notifications.filter(function(n) { return !n.read_at; }).length;
+  if (bd) bd.style.display = unread > 0 ? '' : 'none';
+
+  bell.onclick = function() {
+    dr.hidden = !dr.hidden;
+    bell.setAttribute('aria-expanded', String(!dr.hidden));
+  };
+
+  if (dl) {
+    if (notifications.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = notifications.map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var dr = $('dr');
+  var bell = $('bell');
+  if (dr && bell && !dr.hidden && !e.target.closest('#dr,#bell')) {
+    dr.hidden = true;
+    bell.setAttribute('aria-expanded', 'false');
+  }
+});
+
+function render() {
+  var mn = $('mn');
+  if (!mn) return;
+
+  var wsSelect = $('ws');
+  var currentOrgName = (wsSelect && wsSelect.options[wsSelect.selectedIndex]) ? wsSelect.options[wsSelect.selectedIndex].text : 'Studio';
+
+  // Project map
+  var pMap = {};
+  projectsList.forEach(function(p) { pMap[p.id] = p.name; });
+
+  // Open review ask box
+  var askHtml = '';
+  if (openReview) {
+    var verNum = openReview.version_number || 1;
+    var dueStr = openReview.due_at ? (' · due ' + (H.formatDate ? H.formatDate(openReview.due_at) : openReview.due_at.slice(0, 10))) : '';
+    var pTitle = pMap[openReview.project_id] || 'Deliverable';
+    askHtml = '<div class="ask">' +
+      '<h2>Waiting for you</h2>' +
+      '<p>' + esc(pTitle) + ' · version ' + esc(verNum) + esc(dueStr) + '</p>' +
+      '<a class="btn lime" href="/portal/portal-review?id=' + encodeURIComponent(openReview.project_id) + '&review=' + encodeURIComponent(openReview.id) + '">Review version ' + esc(verNum) + '</a>' +
+      '</div>';
+  }
+
+  // Filter dropdown
+  var filterOptions = '<option value="all">All projects</option>' +
+    projectsList.map(function(p) {
+      var sel = (selectedProjectId === p.id) ? ' selected' : '';
+      return '<option value="' + esc(p.id) + '"' + sel + '>' + esc(p.name) + '</option>';
+    }).join('');
+
+  var filterHtml = '<div class="fl" style="margin:20px 0 16px"><label>Project ' +
+    '<select class="sel" id="fp">' + filterOptions + '</select>' +
+    '</label></div>';
+
+  // Updates list
+  var feedHtml = '';
+  if (updatesData.length === 0) {
+    feedHtml = '<p class="empty"><b>' + (selectedProjectId ? 'No updates here' : 'No projects yet') + '</b>' +
+      (selectedProjectId ? 'Try another project.' : 'Updates appear once you’re given access to a project.') + '</p>';
+  } else {
+    feedHtml = updatesData.map(function(u) {
+      var dateStr = u.created_at ? (H.formatDate ? H.formatDate(u.created_at) : u.created_at.slice(0, 10)) : 'Recently';
+      var projName = pMap[u.project_id] || 'Project';
+      var title = u.kind === 'REVIEW' ? ('Version ' + (u.version_number || 1) + ' · ' + esc(u.status || 'Review')) : 'Project update';
+      var reviewLink = (u.kind === 'REVIEW' && u.review_id)
+        ? '<p style="margin-top:10px"><a class="btn lime sm" href="/portal/portal-review?id=' + encodeURIComponent(u.project_id) + '&review=' + encodeURIComponent(u.review_id) + '">Open review</a></p>'
+        : '';
+
+      return '<article class="post" style="border-bottom:1px solid var(--border);padding:16px 0">' +
+        '<small style="color:var(--muted)">' + esc(dateStr) + ' · ' + esc(projName) + '</small>' +
+        '<h3 style="margin:6px 0 8px;font-size:16px">' + esc(title) + '</h3>' +
+        '<p style="margin:0;line-height:1.5">' + esc(u.body || 'No details provided.') + '</p>' +
+        reviewLink +
+        '</article>';
+    }).join('');
+  }
+
+  mn.innerHTML = '<h1>Latest updates</h1>' +
+    '<p class="sub">News from ' + esc(currentOrgName) + ' about your projects.</p>' +
+    askHtml +
+    filterHtml +
+    feedHtml;
+
+  var fp = $('fp');
+  if (fp) {
+    fp.onchange = function() {
+      var val = fp.value;
+      selectedProjectId = val === 'all' ? null : val;
+      var newUrl = selectedProjectId
+        ? (window.location.pathname + '?projectId=' + encodeURIComponent(selectedProjectId))
+        : window.location.pathname;
+      window.history.replaceState(null, '', newUrl);
+      loadUpdates();
+    };
+  }
+}
+
+async function loadUpdates() {
+  if (!activeOrgId) return;
+
+  var path = '/organizations/' + activeOrgId + '/portal/updates?limit=50';
+  if (selectedProjectId) {
+    path += '&project_id=' + encodeURIComponent(selectedProjectId);
+  }
+
+  try {
+    var res = await api.get(path);
+    updatesData = res.items || [];
+    if (res.projects && res.projects.length > 0) {
+      projectsList = res.projects;
+    }
+  } catch (err) {
+    console.error('Failed to load updates:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'mn')) return;
+  }
+
+  // Find any open review
+  try {
+    var rRes = await api.get('/organizations/' + activeOrgId + '/portal/reviews?status=OPEN&limit=1');
+    var rItems = rRes.items || (Array.isArray(rRes) ? rRes : []);
+    openReview = rItems.length > 0 ? rItems[0] : null;
+  } catch (_) {}
+
+  render();
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = (auth.getClientPrincipals ? auth.getClientPrincipals() : []) || [];
+  activeOrgId = auth.getActiveOrgId();
+  activePrincipalId = auth.getActivePrincipalId();
+
+  // Populate workspace selector
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(p) {
+      var name = p.name || p.organization_name || ('Studio ' + (p.organization_id || '').slice(0, 4));
+      var sel = (p.id === activePrincipalId || p.organization_id === activeOrgId) ? ' selected' : '';
+      return '<option value="' + esc(p.id) + '" data-org="' + esc(p.organization_id) + '"' + sel + '>' + esc(name) + '</option>';
+    }).join('');
+
+    ws.onchange = async function() {
+      var opt = ws.options[ws.selectedIndex];
+      var pid = opt ? opt.value : null;
+      if (pid && pid !== activePrincipalId) {
+        $('mn').innerHTML = '<p class="empty">Switching workspace…</p>';
+        await auth.switchPrincipal(pid);
+        window.location.href = '/portal/portal-projects';
+      }
+    };
+  }
+
+  var urlParams = new URLSearchParams(window.location.search);
+  selectedProjectId = urlParams.get('projectId') || urlParams.get('project_id');
+
+  // Load accessible projects first if needed
+  try {
+    var pRes = await api.get('/organizations/' + activeOrgId + '/portal/projects?limit=50');
+    projectsList = pRes.items || [];
+  } catch (_) {}
+
+  // Load notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=8');
+    notifications = nRes.items || (Array.isArray(nRes) ? nRes : []);
+    renderNotifications();
+  } catch (_) {}
+
+  await loadUpdates();
+}
+
+init();

@@ -1,0 +1,380 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var currentOrg = null;
+var currentMemberRole = null;
+var currentUserId = null;
+var teamMembers = [];
+var logoRevision = 1;
+var currentLogo = null;
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function renderOrgLogo(logoRef) {
+  var lg = $('lg');
+  if (!lg) return;
+
+  var nm = currentOrg ? (currentOrg.name || '') : '';
+  var parts = nm.trim().split(/\s+/);
+  var ini = parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : (nm ? nm.slice(0, 2).toUpperCase() : 'SN');
+
+  if (logoRef && logoRef.asset_id) {
+    var imgUrl = '/api/v1/organizations/' + activeOrgId + '/logo/content?v=' + encodeURIComponent(logoRef.asset_id) + '&t=' + Date.now();
+    lg.style.backgroundImage = 'url("' + imgUrl + '")';
+    lg.style.backgroundSize = 'cover';
+    lg.style.backgroundPosition = 'center';
+    lg.textContent = '';
+  } else {
+    lg.style.backgroundImage = '';
+    lg.textContent = ini;
+  }
+}
+
+function updateOrgInitials(name) {
+  var nm = name || '';
+  var parts = nm.trim().split(/\s+/);
+  var ini = parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : (nm ? nm.slice(0, 2).toUpperCase() : 'SN');
+
+  var lg = $('lg');
+  if (lg && (!currentLogo || !currentLogo.asset_id)) {
+    lg.style.backgroundImage = '';
+    lg.textContent = ini;
+  }
+}
+
+async function loadLogo() {
+  if (!activeOrgId) return;
+  try {
+    currentLogo = await api.get('/organizations/' + activeOrgId + '/logo');
+    logoRevision = currentLogo ? (currentLogo.revision || 1) : 1;
+    renderOrgLogo(currentLogo);
+  } catch (err) {
+    console.error('Failed to load org logo:', err);
+  }
+}
+
+// 1. Load Organization Details
+async function loadOrg() {
+  var cn = $('cn');
+  var cd = $('cd');
+  var tz = $('tz');
+  var tcLabel = document.querySelector('label[for=tc] b');
+
+  try {
+    currentOrg = await api.get('/organizations/' + activeOrgId);
+    if (!currentOrg) return;
+
+    if (cn) cn.value = currentOrg.name || '';
+    if (cd) cd.value = currentOrg.description || '';
+    if (tcLabel) tcLabel.textContent = currentOrg.name || '';
+
+    updateOrgInitials(currentOrg.name);
+
+    if (tz && currentOrg.timezone) {
+      var found = false;
+      for (var i = 0; i < tz.options.length; i++) {
+        if (tz.options[i].text.includes(currentOrg.timezone) || tz.options[i].value === currentOrg.timezone) {
+          tz.selectedIndex = i;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        var opt = document.createElement('option');
+        opt.value = currentOrg.timezone;
+        opt.textContent = currentOrg.timezone;
+        opt.selected = true;
+        tz.appendChild(opt);
+      }
+    }
+  } catch (err) {
+    if (H && H.handlePageAccessError) {
+      H.handlePageAccessError(err, 'app');
+    }
+  }
+}
+
+// 2. Save Settings
+var sv = $('sv');
+if (sv) {
+  sv.onclick = async function() {
+    var cn = $('cn');
+    var cd = $('cd');
+    var tz = $('tz');
+    var ok = $('ok');
+    if (!cn || !ok) return;
+
+    var name = cn.value.trim();
+    if (!name) {
+      ok.textContent = 'Company name can’t be empty.';
+      ok.className = 'msg err mg';
+      ok.hidden = false;
+      return;
+    }
+
+    var desc = cd ? cd.value.trim() : '';
+    var tzVal = tz ? tz.value.split(' ')[0] : 'Africa/Cairo';
+
+    sv.disabled = true;
+    try {
+      var res = await api.patch('/organizations/' + activeOrgId, {
+        name: name,
+        description: desc,
+        timezone: tzVal
+      }, { revision: currentOrg?.revision });
+
+      if (res) currentOrg = res;
+      currentOrg.revision = (currentOrg.revision || 1) + 1;
+      currentOrg.name = name;
+
+      var tcLabel = document.querySelector('label[for=tc] b');
+      if (tcLabel) tcLabel.textContent = name;
+      var tc = $('tc');
+      if (tc) tc.value = '';
+      var tb = $('tb');
+      if (tb) tb.disabled = true;
+
+      updateOrgInitials(name);
+
+      ok.className = 'msg mg';
+      ok.textContent = 'Settings saved.';
+      ok.hidden = false;
+    } catch (err) {
+      ok.className = 'msg err mg';
+      if (err.status === 412 || err.code === 'STALE_REVISION') {
+        ok.textContent = 'Settings were modified by another user. Reloading…';
+        await loadOrg();
+      } else if (err.status === 403 || err.code === 'FORBIDDEN' || err.code === 'ADMIN_REQUIRED') {
+        ok.textContent = 'Organization administrator required.';
+      } else {
+        ok.textContent = err.message || 'Failed to save settings.';
+      }
+      ok.hidden = false;
+    } finally {
+      sv.disabled = false;
+    }
+  };
+}
+
+// 3. Danger Zone: Ownership Transfer
+async function loadTeamForTransfer() {
+  var to = $('to');
+  var dangerSec = document.querySelector('section.danger');
+  if (!dangerSec) return;
+
+  // Only owners manage ownership
+  if (currentMemberRole !== 'OWNER') {
+    dangerSec.hidden = true;
+    return;
+  }
+  dangerSec.hidden = false;
+
+  if (!to) return;
+
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/team');
+    var list = Array.isArray(res) ? res : (Array.isArray(res?.items) ? res.items : []);
+    teamMembers = list;
+
+    // Eligible new owners: active members/admins other than self
+    var eligible = list.filter(function(m) {
+      var isSelf = (currentUserId && m.id === currentUserId) || (auth.user && m.email === auth.user.email);
+      return !isSelf && m.status === 'ACTIVE';
+    });
+
+    if (eligible.length === 0) {
+      to.innerHTML = '<option value="">No other active team members</option>';
+      to.disabled = true;
+      var tb = $('tb');
+      if (tb) tb.disabled = true;
+      return;
+    }
+
+    to.disabled = false;
+    to.innerHTML = eligible.map(function(m) {
+      return '<option value="' + esc(m.id) + '">' + esc(m.name || m.email) + ' (' + esc(m.email) + ')</option>';
+    }).join('');
+  } catch (err) {
+    console.error('Failed to load team for ownership transfer:', err);
+  }
+}
+
+// Wire confirmation input
+var tc = $('tc');
+var tb = $('tb');
+if (tc && tb) {
+  tc.oninput = function() {
+    var expected = (currentOrg?.name || '').trim();
+    tb.disabled = this.value.trim() !== expected;
+  };
+}
+
+if (tb) {
+  tb.onclick = async function() {
+    var to = $('to');
+    var re = $('re');
+    if (!to || !to.value) return;
+
+    var selectedMembershipId = to.value;
+    var selectedMember = teamMembers.find(function(m) { return m.id === selectedMembershipId; });
+    var targetName = selectedMember ? (selectedMember.name || selectedMember.email) : 'this member';
+
+    if (re) {
+      re.hidden = true;
+    }
+
+    var confirmed = await (H && H.askConfirm ? H.askConfirm(
+      'Transferring ownership of ' + (currentOrg?.name || 'this organization') + ' to ' + targetName + '? You will become an admin and will need to sign in again.',
+      { title: 'Transfer ownership?', confirmText: 'Transfer ownership', danger: true }
+    ) : Promise.resolve(window.confirm('Transferring ownership will make you an admin and sign you out. Continue?')));
+
+    if (!confirmed) return;
+
+    tb.disabled = true;
+    try {
+      await api.post('/organizations/' + activeOrgId + '/ownership', {
+        membershipId: selectedMembershipId
+      });
+      window.location.href = '/login?notice=ownership_transferred';
+    } catch (err) {
+      tb.disabled = false;
+      if (re) {
+        if (err.status === 403 || err.code === 'REAUTHENTICATE') {
+          re.hidden = false;
+        } else if (err.status === 403 || err.code === 'OWNER_REQUIRED') {
+          re.textContent = 'Only an owner can transfer ownership.';
+          re.hidden = false;
+        } else {
+          re.textContent = err.message || 'Failed to transfer ownership.';
+          re.hidden = false;
+        }
+      }
+    }
+  };
+}
+
+// 4. Logo upload and removal
+var lp = $('lp');
+var lr = $('lr');
+var lu = $('lu');
+var le = $('le');
+
+if (lu) {
+  lu.onchange = async function() {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+
+    if (le) {
+      le.hidden = true;
+      le.textContent = 'This image was rejected. Use a JPG or PNG under 2 MB.';
+    }
+
+    try {
+      var uploadRecord = await H.uploadMedia(file, '/organizations/' + activeOrgId + '/logo/uploads', function(statusText) {
+        if (lp) lp.textContent = statusText;
+      });
+
+      if (lp) lp.textContent = 'Saving…';
+
+      var saved = await api.patch('/organizations/' + activeOrgId + '/logo', { asset_id: uploadRecord.asset_id || uploadRecord.id }, { revision: logoRevision });
+      logoRevision = saved.revision || (logoRevision + 1);
+      currentLogo = { asset_id: uploadRecord.asset_id || uploadRecord.id, revision: logoRevision };
+      renderOrgLogo(currentLogo);
+
+      if (lp) lp.textContent = 'Your current logo stays until the new one is ready.';
+    } catch (err) {
+      if (lp) lp.textContent = 'Your current logo stays until the new one is ready.';
+      if (le) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          le.textContent = 'Logo changed in another session. Refreshing…';
+          await loadLogo();
+        } else if (err.code === 'SCANNER_UNAVAILABLE') {
+          le.textContent = "We couldn't process this file right now. Try again later.";
+        } else {
+          le.textContent = err.message || 'This image was rejected. Use a JPG or PNG under 2 MB.';
+        }
+        le.hidden = false;
+      }
+    }
+  };
+}
+
+if (lr) {
+  lr.onclick = async function() {
+    if (le) {
+      le.hidden = true;
+      le.textContent = 'This image was rejected. Use a JPG or PNG under 2 MB.';
+    }
+
+    if (!currentLogo || !currentLogo.asset_id) {
+      return;
+    }
+
+    lr.disabled = true;
+    if (lp) lp.textContent = 'Removing…';
+
+    try {
+      var saved = await api.patch('/organizations/' + activeOrgId + '/logo', { asset_id: null }, { revision: logoRevision });
+      logoRevision = saved.revision || (logoRevision + 1);
+      currentLogo = { asset_id: null, revision: logoRevision };
+      renderOrgLogo(null);
+      if (lp) lp.textContent = 'Your current logo stays until the new one is ready.';
+    } catch (err) {
+      if (lp) lp.textContent = 'Your current logo stays until the new one is ready.';
+      if (le) {
+        if (err.status === 412 || err.code === 'STALE_REVISION') {
+          le.textContent = 'Logo changed in another session. Refreshing…';
+          await loadLogo();
+        } else {
+          le.textContent = err.message || 'Failed to remove logo.';
+        }
+        le.hidden = false;
+      }
+    } finally {
+      lr.disabled = false;
+    }
+  };
+}
+
+// Initial bootstrap
+async function initSettings() {
+  var session = await auth.init();
+  activeOrgId = auth.getActiveOrgId();
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId;
+  }
+
+  var activePrinc = auth.getActivePrincipal();
+  currentMemberRole = activePrinc?.role || null;
+  currentUserId = activePrinc?.id || null;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  await loadOrg();
+  await loadLogo();
+  await loadTeamForTransfer();
+}
+
+initSettings();

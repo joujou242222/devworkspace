@@ -1,0 +1,58 @@
+DevWorkspace Phase 6 — sanitized verification evidence
+Date: 2026-10-18
+Status: PASS for the approved local-development scope. Stop at Phase 6 review.
+Working directory: D:\Devworkspace
+
+Executed checks and successful final results:
+pnpm build: PASS; generated database client and all workspace builds.
+pnpm --filter @devworkspace/web build: PASS; final UI text.
+pnpm check: PASS; runtime, boundaries, docs, infrastructure configuration,
+  generated OpenAPI, environment, lint, typecheck, 13/13 units, formatting.
+pnpm test:native: PASS 7/7.
+pnpm test:integration: PASS 20/20 in experiment mode.
+pnpm test:e2e:experiment: PASS 1/1.
+pnpm test:phase2: PASS 20/20.
+pnpm test:phase3: PASS 27/27.
+pnpm test:phase4: PASS 24/24.
+pnpm test:phase5: PASS 21/21.
+pnpm test:e2e: PASS 1/1.
+pnpm test:e2e:phase3: PASS 2/2.
+pnpm test:e2e:phase4: PASS 3/3.
+pnpm test:e2e:phase5: PASS 2/2.
+node --test --test-timeout=300000 --test-name-pattern='all additive migrations' tests/phase4/api.test.mjs:
+  PASS 1/1; fresh database installs through 0034.
+pnpm test:phase4:sandbox: PASS 8/8 after official signature refresh.
+pnpm test:phase6: PASS 19/19, zero skipped/cancelled.
+pnpm test:e2e:phase6: PASS 1/1; final screenshots visually inspected.
+pnpm check:docs: PASS; 36 templates, 29 core / 7 expansion, 107 links.
+git diff --check: PASS; existing CRLF normalization warnings only.
+node .local/phase6-migration-check.mjs: PASS; all 34 applied SQL hashes match.
+node .local/phase6-preservation.mjs: PASS; baseline 204 files, none missing;
+  prior applied SQL unchanged; lockfile inverse-hash proof allows only the two
+  existing pinned API/web importer entries, with no package graph upgrade.
+
+V06: actual domain events, concurrent/reordered materialization, atomic effect/
+receipt rollback, independent worker termination, natural lease reclamation,
+lost accepted synthetic queue job, real saved Redis restart, real SMTP outage,
+bounded exhausted state and restricted audited replay. Domain state retained.
+V07: actual independent API/socket processes; hostile/expired/forged/foreign
+contexts denied, live grant/session revocation, worker Redis fanout, policy-store
+failure closed, process restart and authoritative REST catch-up.
+Browser: real login, internal/portal notification isolation, filters, read/bulk
+state, self preferences, prospective suppression/no backfill, offline recovery.
+
+Failure investigations and forward fixes are recorded in PHASE_6_REPORT.md:
+SQL recipient/parameter issues, envelope/audit strengthening, held-upload GET
+deadlock, policy fault-injection correction, two-message test synchronization,
+stopped-service restoration, and expired daily signatures refreshed through the
+retained official updater and existing preparation path. Redis fault injection
+prints an expected transport reset; durable recovery assertions pass.
+
+Earlier-phase full regression commands preceded final worker audit fix 0034.
+Fresh-schema, Phase 6 integration/browser and root checks passed afterward.
+No database reset, canonical deletion, applied-migration rewrite, global Windows
+change, dependency version upgrade, external message, commit, push or deployment.
+Prior storage, AppContainer/ACL, cleanup and operator-recovery limits remain.
+No exactly-once SMTP, full-system restore, load or final-system certification.
+Phase 7 expansions and professional redesign remain deferred.
+Private runtime logs, accounts, credentials and screenshots remain ignored locally.

@@ -1,0 +1,420 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var milestonesData = [];
+var isManager = false;
+
+function askText(title, val) {
+  return new Promise(function(resolve) {
+    var d = document.createElement('dialog');
+    var id = 'at' + Date.now();
+    d.innerHTML = '<form method="dialog"><h2></h2><div class="fld" style="margin-top:16px"><label for="' + id + '">Name</label><input id="' + id + '" type="text"></div><div class="row2"><button class="btn lime" type="submit">Save</button><button class="btn" type="button" data-n>Cancel</button></div></form>';
+    document.body.appendChild(d);
+    d.querySelector('h2').textContent = title;
+    var i = d.querySelector('input');
+    i.value = val || '';
+    d.querySelector('[data-n]').onclick = function() { d.close(); resolve(null); };
+    d.querySelector('form').onsubmit = function(e) {
+      e.preventDefault();
+      var v = i.value.trim();
+      if (!v) { i.focus(); return; }
+      d.close();
+      resolve(v);
+    };
+    d.addEventListener('close', function() { d.remove(); });
+    if (d.showModal) d.showModal();
+    else resolve(window.prompt(title, val));
+    i.select();
+  });
+}
+
+function formatMilestoneDue(dueAt) {
+  if (!dueAt) return 'TBD';
+  var d = new Date(dueAt);
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return months[d.getUTCMonth()] + ' ' + d.getUTCDate();
+}
+
+function canUserEdit() {
+  if (!currentProject || currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+    return false;
+  }
+  return isManager;
+}
+
+function render() {
+  var em = $('em');
+  var ls = $('ls');
+  var canEdit = canUserEdit();
+
+  if (em) em.hidden = milestonesData.length > 0;
+  if (!ls) return;
+
+  var now = new Date();
+
+  ls.innerHTML = milestonesData.map(function(m, i) {
+    var isDone = m.status === 'COMPLETED';
+    var isLate = !isDone && m.due_at && new Date(m.due_at) < now;
+    var dueStr = formatMilestoneDue(m.due_at);
+
+    var doneCount = m.summary ? (m.summary.done || 0) : 0;
+    var totalCount = m.summary ? (m.summary.total || 0) : 0;
+
+    var statusClass = isDone ? 'ok' : (isLate ? 'bad' : '');
+    var statusLabel = isDone ? 'Complete' : (isLate ? 'Late' : 'Open');
+    var liClass = isDone ? 'done' : (isLate ? 'late' : '');
+
+    var buttonsHtml = '';
+    if (canEdit) {
+      buttonsHtml = '<div class="row2" style="margin-top:8px">' +
+        '<button class="btn sm" data-u="' + i + '" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+        '<button class="btn sm" data-d="' + i + '" aria-label="Move down"' + (i === milestonesData.length - 1 ? ' disabled' : '') + '>↓</button>' +
+        '<button class="btn sm" data-r="' + i + '">Rename</button>' +
+        '<button class="btn sm ' + (isDone ? '' : 'lime') + '" data-c="' + i + '">' + (isDone ? 'Reopen' : 'Mark complete') + '</button>' +
+        '</div>';
+    }
+
+    return '<li class="' + liClass + '">' +
+      '<b>' + H.esc(m.title) + '</b> <span class="st ' + statusClass + '">' + H.esc(statusLabel) + '</span><br>' +
+      '<small style="color:var(--muted)">Due ' + H.esc(dueStr) + ' · ' + doneCount + ' of ' + totalCount + ' tasks done</small>' +
+      buttonsHtml +
+      '</li>';
+  }).join('');
+
+  if (canEdit) {
+    // Reorder UP
+    ls.querySelectorAll('[data-u]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var idx = +btn.getAttribute('data-u');
+        if (idx <= 0) return;
+        await swapMilestones(idx, idx - 1);
+      };
+    });
+
+    // Reorder DOWN
+    ls.querySelectorAll('[data-d]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var idx = +btn.getAttribute('data-d');
+        if (idx >= milestonesData.length - 1) return;
+        await swapMilestones(idx, idx + 1);
+      };
+    });
+
+    // Rename
+    ls.querySelectorAll('[data-r]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var idx = +btn.getAttribute('data-r');
+        var m = milestonesData[idx];
+        if (!m) return;
+
+        var newTitle = await askText('Rename milestone', m.title);
+        if (!newTitle || newTitle === m.title) return;
+
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+
+        try {
+          var updated = await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones/' + m.id,
+            {
+              title: newTitle,
+              due_at: m.due_at,
+              position: m.position,
+              status: m.status
+            },
+            { revision: m.revision }
+          );
+          m.title = updated.title;
+          m.revision = updated.revision;
+          render();
+        } catch (err) {
+          if (ce) {
+            ce.textContent = err.message || 'Failed to rename milestone.';
+            ce.hidden = false;
+          }
+        }
+      };
+    });
+
+    // Complete / Reopen
+    ls.querySelectorAll('[data-c]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var idx = +btn.getAttribute('data-c');
+        var m = milestonesData[idx];
+        if (!m) return;
+
+        var ce = $('ce');
+        var re = $('re');
+        if (ce) ce.hidden = true;
+        if (re) re.hidden = true;
+
+        var isDone = m.status === 'COMPLETED';
+        var nextStatus = isDone ? 'OPEN' : 'COMPLETED';
+
+        try {
+          var updated = await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones/' + m.id,
+            {
+              title: m.title,
+              due_at: m.due_at,
+              position: m.position,
+              status: nextStatus
+            },
+            { revision: m.revision }
+          );
+
+          m.status = updated.status;
+          m.revision = updated.revision;
+
+          if (nextStatus === 'OPEN') {
+            if (re) {
+              re.textContent = '“' + m.title + '” was reopened.';
+              re.hidden = false;
+            }
+          }
+          await loadMilestones();
+
+        } catch (err) {
+          if (ce) {
+            ce.textContent = err.message || 'Cannot complete milestone.';
+            ce.hidden = false;
+          }
+        }
+      };
+    });
+  }
+}
+
+async function swapMilestones(i, j) {
+  var m1 = milestonesData[i];
+  var m2 = milestonesData[j];
+  if (!m1 || !m2) return;
+
+  var ce = $('ce');
+  if (ce) ce.hidden = true;
+
+  try {
+    var p1 = m1.position;
+    var p2 = m2.position;
+
+    // If positions are identical, adjust them
+    if (p1 === p2) {
+      p1 = i;
+      p2 = j;
+    }
+
+    var u1 = await api.patch(
+      '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones/' + m1.id,
+      { title: m1.title, due_at: m1.due_at, position: p2, status: m1.status },
+      { revision: m1.revision }
+    );
+    m1.position = u1.position;
+    m1.revision = u1.revision;
+
+    var u2 = await api.patch(
+      '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones/' + m2.id,
+      { title: m2.title, due_at: m2.due_at, position: p1, status: m2.status },
+      { revision: m2.revision }
+    );
+    m2.position = u2.position;
+    m2.revision = u2.revision;
+
+    await loadMilestones();
+  } catch (err) {
+    if (ce) {
+      ce.textContent = err.message || 'Failed to reorder milestones.';
+      ce.hidden = false;
+    }
+  }
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = H.esc(clientName) + ' · <span class="tag">' + H.esc(uiStatus) + '</span>';
+    }
+
+    var nmBtn = $('nm');
+    if (nmBtn) {
+      if (currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+        nmBtn.hidden = true;
+        nmBtn.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadRole() {
+  try {
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+    } else {
+      var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+      var rawMembers = res.items || [];
+      var myOrgMemberId = principal ? (principal.id || principal.membership_id) : '';
+      var pMember = rawMembers.find(function(pm) { return pm.membership_id === myOrgMemberId; });
+      isManager = pMember && pMember.role === 'MANAGER';
+    }
+
+    var nmBtn = $('nm');
+    if (nmBtn) {
+      if (!isManager || currentProject?.status === 'COMPLETED' || currentProject?.status === 'ARCHIVED') {
+        nmBtn.hidden = true;
+        nmBtn.style.display = 'none';
+      } else {
+        nmBtn.hidden = false;
+        nmBtn.style.display = '';
+      }
+    }
+  } catch (_) {
+    isManager = false;
+  }
+}
+
+async function loadMilestones() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones');
+    var items = res.items || [];
+    // Sort by position asc, then created_at asc
+    items.sort(function(a, b) {
+      if (a.position !== b.position) return (a.position || 0) - (b.position || 0);
+      return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+    });
+    milestonesData = items;
+    render();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Pre-hide New milestone button for standard members
+  var nmBtn = $('nm');
+  if (nmBtn && principal && principal.role === 'MEMBER') {
+    nmBtn.hidden = true;
+    nmBtn.style.display = 'none';
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Dialog cancel buttons
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var dlg = b.closest('dialog');
+      if (dlg) dlg.close();
+    };
+  });
+
+  // New Milestone button
+  if (nmBtn) {
+    nmBtn.onclick = function() {
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+      var mt = $('mt');
+      var md = $('md');
+      if (mt) mt.value = '';
+      if (md) md.value = '';
+      var dg = $('dg');
+      if (dg && dg.showModal) dg.showModal();
+    };
+  }
+
+  // Create Milestone submit
+  var dgf = $('dgf');
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+
+      var mt = $('mt');
+      var md = $('md');
+      var title = mt ? mt.value.trim() : '';
+      if (!title) {
+        if (derr) {
+          derr.textContent = 'Give the milestone a title.';
+          derr.hidden = false;
+        }
+        return;
+      }
+
+      var dueAt = md && md.value ? new Date(md.value + 'T23:59:59.000Z').toISOString() : null;
+
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones',
+          {
+            title: title,
+            due_at: dueAt,
+            position: milestonesData.length,
+            status: 'OPEN'
+          }
+        );
+
+        var dg = $('dg');
+        if (dg) dg.close();
+
+        await loadMilestones();
+
+      } catch (err) {
+        if (derr) {
+          derr.textContent = err.message || 'Failed to create milestone.';
+          derr.hidden = false;
+        }
+      }
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadRole();
+    await loadMilestones();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+// Start
+initPage();

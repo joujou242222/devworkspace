@@ -1,0 +1,27 @@
+
+<div class="app" id="app">
+<aside class="side dk">
+  <a class="brand" href="/" aria-label="Devworkspace home"><span class="lgm" aria-hidden="true"><i></i><i></i><i></i></span><span class="lgw"><span class="d">Dev</span><span class="w">workspace</span></span></a><i class="rule" aria-hidden="true"></i>
+  <nav aria-label="Workspace"><a href="/workspace/dashboard"><span>Dashboard</span></a><a href="/workspace/projects"><span>Projects</span></a><a href="/workspace/my-tasks"><span>My tasks</span></a><a href="/workspace/clients"><span>Clients</span></a><a href="/workspace/reviews"><span>Review center</span></a><a href="/workspace/documents"><span>Documents</span></a><a href="/workspace/reports"><span>Reports</span></a><a href="/workspace/team"><span>Team</span></a><a href="/workspace/audit"><span>Audit log</span></a><a href="/workspace/settings"><span>Settings</span></a></nav>
+  <button class="tog" id="tog" aria-label="Collapse sidebar">&larr;</button>
+</aside>
+<main class="page">
+<div class="util"><button class="ib" id="bell" aria-expanded="false" aria-controls="dr"><i class="dot" id="bd"></i>Notifications</button><a class="ib" href="/workspace/account"><span class="av" style="width:28px;height:28px;font-size:12px">SA</span>Sara</a>
+<div class="drawer" id="dr" hidden><h2 style="border:0;padding:0;font-size:20px;margin-bottom:6px">Notifications</h2><ul class="nl" id="dl"></ul><div class="ft"><a href="/workspace/notifications">View all</a><a href="/workspace/account#prefs">Preferences</a></div></div></div>
+<div class="top"><div><h1>Account</h1><p>Your profile and how you sign in.</p></div></div>
+<section class="sec"><h2>Profile</h2><div class="msg err mg" id="ie" role="alert" hidden>This image was rejected. Use a JPG or PNG under 2 MB.</div>
+<div class="row2 mg"><span class="av big" id="av">SA</span><div><div class="row2"><label class="btn sm" for="up" tabindex="0">Upload photo</label><input type="file" id="up" accept="image/png,image/jpeg" hidden><button class="btn sm" id="rm" type="button">Remove</button></div><small id="pv" style="color:var(--muted)"></small></div></div>
+<div class="fld"><label for="dn">Display name</label><input id="dn" type="text" autocomplete="name" value="Sara Adel"></div><div class="msg mg" id="ps" role="status" hidden>Profile saved.</div><button class="btn lime" id="sv" type="button">Save profile</button></section>
+<section class="sec"><h2>Password</h2><div class="msg err mg" id="pe" role="alert" hidden></div>
+<div class="fld"><label for="o">Current password</label><input id="o" type="password" autocomplete="current-password" value=""></div><div class="fld"><label for="n1">New password</label><input id="n1" type="password" autocomplete="new-password" value=""></div><div class="fld"><label for="n2">Confirm new password</label><input id="n2" type="password" autocomplete="new-password" value=""></div><div class="msg mg" id="po" hidden>Password updated.</div><button class="btn lime" id="pw" type="button">Change password</button></section>
+<section class="sec"><h2>Sessions</h2><div class="tblw"><table class="tbl"><thead><tr><th>Device</th><th>IP address</th><th>Last used</th><th></th></tr></thead><tbody id="ss">
+<tr><td>Chrome on Windows <span class="tag">This device</span></td><td>Alexandria, EG</td><td>Now</td><td><button class="btn sm" disabled title="You can’t end your current session">End</button></td></tr>
+<tr><td>Safari on iPhone</td><td>Cairo, EG</td><td>2 hours ago</td><td><button class="btn sm red" data-e>End</button></td></tr>
+<tr><td>Firefox on macOS</td><td>Giza, EG</td><td>3 days ago</td><td><button class="btn sm red" data-e>End</button></td></tr></tbody></table></div></section>
+<section class="sec" id="prefs"><h2>Notifications</h2>
+<div class="pf"><label for="a1">Comments on my work</label><input class="t" id="a1" type="checkbox" checked></div>
+<div class="pf"><label for="a2">Reviews waiting on a decision</label><input class="t" id="a2" type="checkbox" checked></div>
+<div class="pf"><label for="a3">Task assignments</label><input class="t" id="a3" type="checkbox" checked></div>
+<p style="color:var(--muted);font-size:14px;margin-top:12px">Confirmation, password reset and invitation emails are always sent.</p></section>
+</main></div>
+

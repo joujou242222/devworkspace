@@ -1,0 +1,556 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var projectMembers = [];
+var projectMilestones = [];
+var tasksData = [];
+var isManager = false;
+var isContributor = false;
+var isViewer = false;
+var userProjectMemberId = null;
+
+var ST = ['To do', 'In progress', 'Done', 'Blocked'];
+
+function toUITaskStatus(apiStatus) {
+  if (H.toUITaskStatus) return H.toUITaskStatus(apiStatus);
+  var map = { TODO: 'To do', IN_PROGRESS: 'In progress', DONE: 'Done', BLOCKED: 'Blocked', CANCELLED: 'Cancelled' };
+  return map[apiStatus] || apiStatus || 'To do';
+}
+
+function toApiTaskStatus(uiStatus) {
+  if (H.toApiTaskStatus) return H.toApiTaskStatus(uiStatus);
+  var map = { 'To do': 'TODO', 'In progress': 'IN_PROGRESS', 'Done': 'DONE', 'Blocked': 'BLOCKED', 'Cancelled': 'CANCELLED' };
+  return map[uiStatus] || 'TODO';
+}
+
+function uiPriorityToApi(p) {
+  if (p === 'High') return 'HIGH';
+  if (p === 'Medium') return 'NORMAL';
+  if (p === 'Low') return 'LOW';
+  if (p === 'Urgent') return 'URGENT';
+  return 'NORMAL';
+}
+
+function apiPriorityToUi(p) {
+  if (p === 'HIGH') return 'High';
+  if (p === 'NORMAL') return 'Medium';
+  if (p === 'LOW') return 'Low';
+  if (p === 'URGENT') return 'Urgent';
+  return 'Medium';
+}
+
+function formatDue(dueAt) {
+  if (!dueAt) return 'No due date';
+  var due = new Date(dueAt);
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var dueDate = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  var diffDays = Math.round((dueDate - today) / 864e5);
+  if (diffDays < 0) return '<span class="late">Overdue ' + (-diffDays) + 'd</span>';
+  if (diffDays === 0) return 'Due today';
+  return 'Due in ' + diffDays + 'd';
+}
+
+function getAssigneeName(assigneeId) {
+  if (!assigneeId) return 'Unassigned';
+  var m = projectMembers.find(function(x) { return x.id === assigneeId; });
+  return m ? (m.name || 'Member') : 'Unassigned';
+}
+
+function canUserEditTask(task) {
+  if (!currentProject || currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+    return false;
+  }
+  if (isManager) return true;
+  if (isContributor && task.assignee_id === userProjectMemberId && task.status !== 'CANCELLED') {
+    return true;
+  }
+  return false;
+}
+
+function isAll(v) {
+  return !v || v.toLowerCase() === 'all';
+}
+
+function isUnassigned(v) {
+  return v && v.toLowerCase() === 'unassigned';
+}
+
+function render() {
+  var faVal = $('fa') ? $('fa').value : 'All';
+  var fpVal = $('fp') ? $('fp').value : 'All';
+  var fdVal = $('fd') ? $('fd').value : 'Any time';
+  var qVal = $('q') ? $('q').value.trim().toLowerCase() : '';
+  var vwVal = $('vw') ? $('vw').value : 'Board';
+
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  var filtered = tasksData.filter(function(t) {
+    // Assignee filter
+    if (!isAll(faVal)) {
+      if (isUnassigned(faVal)) {
+        if (t.assignee_id != null) return false;
+      } else {
+        if (t.assignee_id !== faVal) return false;
+      }
+    }
+
+    // Priority filter
+    if (!isAll(fpVal)) {
+      var uiP = apiPriorityToUi(t.priority);
+      if (uiP.toLowerCase() !== fpVal.toLowerCase()) return false;
+    }
+
+    // Due filter
+    if (fdVal !== 'Any time') {
+      if (!t.due_at) return false;
+      var due = new Date(t.due_at);
+      var dueDate = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      var diffDays = Math.round((dueDate - today) / 864e5);
+      if (fdVal === 'Overdue') {
+        if (diffDays >= 0 || t.status === 'DONE' || t.status === 'CANCELLED') return false;
+      } else if (fdVal === 'This week') {
+        if (diffDays < 0 || diffDays > 7) return false;
+      }
+    }
+
+    // Search filter
+    if (qVal && (t.title || '').toLowerCase().indexOf(qVal) === -1) {
+      return false;
+    }
+
+    return true;
+  });
+
+  var em = $('em');
+  var out = $('out');
+  if (em) em.hidden = filtered.length > 0;
+  if (!out) return;
+
+  if (filtered.length === 0) {
+    out.innerHTML = '';
+    return;
+  }
+
+  if (vwVal === 'Board') {
+    var boardHtml = '<div class="board">';
+    ST.forEach(function(s) {
+      var colTasks = filtered.filter(function(t) {
+        return toUITaskStatus(t.status) === s;
+      });
+
+      var cardsHtml = '';
+      if (colTasks.length === 0) {
+        cardsHtml = '<small style="color:var(--muted);padding:6px">Nothing here</small>';
+      } else {
+        cardsHtml = colTasks.map(function(t) {
+          var canEdit = canUserEditTask(t);
+          var selHtml = '<select class="sel" data-task-id="' + H.esc(t.id) + '" aria-label="Move task"' + (canEdit ? '' : ' disabled') + '>';
+          ST.forEach(function(optStatus) {
+            var curStatusUi = toUITaskStatus(t.status);
+            var selected = curStatusUi === optStatus ? ' selected' : '';
+            selHtml += '<option' + selected + '>' + H.esc(optStatus) + '</option>';
+          });
+          selHtml += '</select>';
+
+          var checkInfo = '';
+          if (t.checklistTotal && t.checklistTotal > 0) {
+            checkInfo = ' · ' + t.checklistDone + ' of ' + t.checklistTotal;
+          }
+
+          var detailHref = '/project/project-task?id=' + encodeURIComponent(activeProjectId) + '&taskId=' + encodeURIComponent(t.id);
+
+          return '<div class="tc">' +
+            '<b><a class="lnk" href="' + detailHref + '">' + H.esc(t.title) + '</a></b>' +
+            '<small>' + H.esc(apiPriorityToUi(t.priority)) + ' priority · ' + H.esc(getAssigneeName(t.assignee_id)) + '</small>' +
+            '<small>' + formatDue(t.due_at) + checkInfo + '</small>' +
+            selHtml +
+            '</div>';
+        }).join('');
+      }
+
+      boardHtml += '<div class="col"><h3>' + H.esc(s) + '<span>' + colTasks.length + '</span></h3>' + cardsHtml + '</div>';
+    });
+    boardHtml += '</div>';
+    out.innerHTML = boardHtml;
+  } else {
+    // List view
+    var rowsHtml = filtered.map(function(t) {
+      var detailHref = '/project/project-task?id=' + encodeURIComponent(activeProjectId) + '&taskId=' + encodeURIComponent(t.id);
+      return '<tr>' +
+        '<td><a class="lnk" href="' + detailHref + '">' + H.esc(t.title) + '</a></td>' +
+        '<td>' + H.esc(apiPriorityToUi(t.priority)) + '</td>' +
+        '<td>' + H.esc(getAssigneeName(t.assignee_id)) + '</td>' +
+        '<td>' + formatDue(t.due_at) + '</td>' +
+        '<td>' + H.esc(toUITaskStatus(t.status)) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    out.innerHTML = '<div class="tblw"><table class="tbl"><thead><tr>' +
+      '<th>Task</th><th>Priority</th><th>Assignee</th><th>Due</th><th>Status</th>' +
+      '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+  }
+
+  // Attach move task listeners
+  out.querySelectorAll('select[data-task-id]').forEach(function(sel) {
+    sel.onchange = async function() {
+      var taskId = sel.getAttribute('data-task-id');
+      var newUiStatus = sel.value;
+      var newApiStatus = toApiTaskStatus(newUiStatus);
+      var task = tasksData.find(function(x) { return x.id === taskId; });
+      if (!task) return;
+
+      var cf = $('cf');
+      if (cf) cf.hidden = true;
+
+      try {
+        var payload;
+        if (isManager) {
+          payload = {
+            title: task.title,
+            description: task.description || '',
+            milestone_id: task.milestone_id,
+            assignee_id: task.assignee_id,
+            priority: task.priority,
+            status: newApiStatus,
+            due_at: task.due_at,
+            position: task.position || 0
+          };
+        } else {
+          // Contributor can only send workState { status }
+          payload = { status: newApiStatus };
+        }
+
+        var updated = await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + taskId,
+          payload,
+          { revision: task.revision }
+        );
+
+        // Update local task
+        task.status = updated.status;
+        task.revision = updated.revision;
+        render();
+      } catch (err) {
+        if (err.status === 409) {
+          if (cf) cf.hidden = false;
+        } else {
+          alert(err.message || 'Failed to update task.');
+        }
+        await loadTasks();
+      }
+    };
+  });
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = H.esc(clientName) + ' · <span class="tag">' + H.esc(uiStatus) + '</span>';
+    }
+
+    // If project is completed or archived, hide "New task"
+    var ntBtn = $('nt');
+    if (ntBtn && (currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED')) {
+      ntBtn.hidden = true;
+      ntBtn.style.display = 'none';
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadMembersAndRole() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+    var rawMembers = res.items || [];
+
+    projectMembers = rawMembers.map(function(pm) {
+      return {
+        id: pm.id,
+        membership_id: pm.membership_id,
+        role: pm.role,
+        status: pm.status,
+        name: pm.name || 'Member'
+      };
+    });
+
+    isManager = false;
+    isContributor = false;
+    isViewer = false;
+    userProjectMemberId = null;
+
+    // Check actor project role
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+    } else {
+      var myOrgMemberId = principal ? (principal.id || principal.membership_id) : '';
+      var pMember = projectMembers.find(function(pm) { return pm.membership_id === myOrgMemberId; });
+      if (pMember) {
+        userProjectMemberId = pMember.id;
+        if (pMember.role === 'MANAGER') isManager = true;
+        else if (pMember.role === 'CONTRIBUTOR') isContributor = true;
+        else if (pMember.role === 'VIEWER') isViewer = true;
+      }
+    }
+
+    // Role-based visibility for "New task"
+    var ntBtn = $('nt');
+    if (ntBtn) {
+      if (!isManager || currentProject?.status === 'COMPLETED' || currentProject?.status === 'ARCHIVED') {
+        ntBtn.hidden = true;
+        ntBtn.style.display = 'none';
+      } else {
+        ntBtn.hidden = false;
+        ntBtn.style.display = '';
+      }
+    }
+
+    // Populate #fa (Assignee filter)
+    var fa = $('fa');
+    if (fa) {
+      var curVal = fa.value;
+      var opts = '<option value="All">All</option>';
+      projectMembers.filter(function(m) { return m.status === 'ACTIVE'; }).forEach(function(m) {
+        opts += '<option value="' + H.esc(m.id) + '">' + H.esc(m.name) + '</option>';
+      });
+      opts += '<option value="Unassigned">Unassigned</option>';
+      fa.innerHTML = opts;
+      if (curVal && !isAll(curVal)) fa.value = curVal;
+    }
+
+    // Populate #ta (Assign to in modal)
+    var ta = $('ta');
+    if (ta) {
+      var mOpts = '';
+      projectMembers.filter(function(m) { return m.status === 'ACTIVE' && m.role !== 'VIEWER'; }).forEach(function(m) {
+        mOpts += '<option value="' + H.esc(m.id) + '">' + H.esc(m.name) + '</option>';
+      });
+      mOpts += '<option value="">Unassigned</option>';
+      ta.innerHTML = mOpts;
+    }
+
+  } catch (_) {}
+}
+
+async function loadMilestones() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/milestones');
+    projectMilestones = res.items || [];
+
+    var tm = $('tm');
+    if (tm) {
+      var opts = '<option value="">None</option>';
+      projectMilestones.forEach(function(m) {
+        opts += '<option value="' + H.esc(m.id) + '">' + H.esc(m.title) + '</option>';
+      });
+      tm.innerHTML = opts;
+    }
+  } catch (_) {}
+}
+
+async function loadTasks() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks?limit=100');
+    var tasks = res.items || [];
+
+    // Fetch checklists in parallel
+    await Promise.all(tasks.map(async function(t) {
+      try {
+        var clRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + t.id + '/checklist');
+        var items = clRes.items || [];
+        t.checklistTotal = items.length;
+        t.checklistDone = items.filter(function(c) { return c.completed; }).length;
+      } catch (_) {
+        t.checklistTotal = 0;
+        t.checklistDone = 0;
+      }
+    }));
+
+    tasksData = tasks;
+    render();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Hide New task button upfront for standard members until manager role is confirmed
+  var ntBtn = $('nt');
+  if (ntBtn && principal && principal.role === 'MEMBER') {
+    ntBtn.hidden = true;
+    ntBtn.style.display = 'none';
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Dialog cancel
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var dlg = b.closest('dialog');
+      if (dlg) dlg.close();
+    };
+  });
+
+  // Filters and search
+  ['fa', 'fp', 'fd', 'vw'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.onchange = render;
+  });
+  var qInput = $('q');
+  if (qInput) qInput.oninput = render;
+
+  // New Task Modal
+  var ntBtn = $('nt');
+  if (ntBtn) {
+    ntBtn.onclick = function() {
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+      ['tt', 'td', 'tu', 'tk'].forEach(function(i) {
+        var f = $(i);
+        if (f) f.value = '';
+      });
+      var dg = $('dg');
+      if (dg && dg.showModal) dg.showModal();
+    };
+  }
+
+  // Create task submit
+  var dgf = $('dgf');
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+
+      var tt = $('tt');
+      var td = $('td');
+      var tm = $('tm');
+      var ta = $('ta');
+      var tp = $('tp');
+      var tu = $('tu');
+      var tk = $('tk');
+
+      var title = tt ? tt.value.trim() : '';
+      if (!title) {
+        if (derr) {
+          derr.textContent = 'Give the task a title.';
+          derr.hidden = false;
+        }
+        return;
+      }
+
+      var desc = td ? td.value.trim() : '';
+      var milestoneId = tm && tm.value ? tm.value : null;
+      var assigneeId = ta && ta.value ? ta.value : null;
+      var priority = uiPriorityToApi(tp ? tp.value : 'Medium');
+      var dueAt = tu && tu.value ? new Date(tu.value + 'T23:59:59.000Z').toISOString() : null;
+      var checklistLines = tk ? tk.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+
+      try {
+        var taskBody = {
+          title: title,
+          description: desc,
+          milestone_id: milestoneId,
+          assignee_id: assigneeId,
+          priority: priority,
+          status: 'TODO',
+          due_at: dueAt,
+          position: 0
+        };
+
+        var created = await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks',
+          taskBody
+        );
+
+        // Create checklist items sequentially
+        for (var i = 0; i < checklistLines.length; i++) {
+          try {
+            await api.post(
+              '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks/' + created.id + '/checklist',
+              { label: checklistLines[i], position: i, completed: false }
+            );
+          } catch (cErr) {
+            console.error('[tasks] checklist item error:', cErr);
+          }
+        }
+
+        var dg = $('dg');
+        if (dg) dg.close();
+
+        await loadTasks();
+
+      } catch (err) {
+        console.error('[tasks] create task error:', err);
+        if (derr) {
+          derr.textContent = err.message || 'Failed to create task.';
+          derr.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Refresh button for stale conflict
+  var rfBtn = $('rf');
+  if (rfBtn) {
+    rfBtn.onclick = async function() {
+      var cf = $('cf');
+      if (cf) cf.hidden = true;
+      await loadTasks();
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadMembersAndRole();
+    await loadMilestones();
+    await loadTasks();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+// Start
+initPage();

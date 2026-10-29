@@ -1,0 +1,19 @@
+pnpm-lock.yaml
+.local/
+node_modules/
+**/dist/
+**/.next/
+**/generated/
+**/generated-product/
+**/next-env.d.ts
+playwright-report/
+test-results/
+# Existing baseline layout is retained; check:docs validates these documents.
+AGENTS.md
+README.md
+docs/ARCHITECTURE.md
+docs/DATA_MODEL.md
+docs/IMPLEMENTATION_PLAN.md
+docs/PRODUCT_SPEC.md
+docs/SECURITY.md
+docs/TESTING.md

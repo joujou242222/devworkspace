@@ -1,0 +1,18 @@
+
+<div class="app" id="app">
+<aside class="side dk">
+  <a class="brand" href="/" aria-label="Devworkspace home"><span class="lgm" aria-hidden="true"><i></i><i></i><i></i></span><span class="lgw"><span class="d">Dev</span><span class="w">workspace</span></span></a><i class="rule" aria-hidden="true"></i>
+  <nav aria-label="Workspace"><a href="/workspace/dashboard"><span>Dashboard</span></a><a href="/workspace/projects"><span>Projects</span></a><a href="/workspace/my-tasks"><span>My tasks</span></a><a href="/workspace/clients"><span>Clients</span></a><a href="/workspace/reviews"><span>Review center</span></a><a href="/workspace/documents"><span>Documents</span></a><a href="/workspace/reports"><span>Reports</span></a><a href="/workspace/team" aria-current="page"><span>Team</span></a><a href="/workspace/audit"><span>Audit log</span></a><a href="/workspace/settings"><span>Settings</span></a></nav>
+  <button class="tog" id="tog" aria-label="Collapse sidebar">&larr;</button>
+</aside>
+<main class="page">
+<div class="util"><button class="ib" id="bell" aria-expanded="false" aria-controls="dr"><i class="dot" id="bd"></i>Notifications</button><a class="ib" href="/workspace/account"><span class="av" style="width:28px;height:28px;font-size:12px">SA</span>Sara</a>
+<div class="drawer" id="dr" hidden><h2 style="border:0;padding:0;font-size:20px;margin-bottom:6px">Notifications</h2><ul class="nl" id="dl"></ul><div class="ft"><a href="/workspace/notifications">View all</a><a href="/workspace/account#prefs">Preferences</a></div></div></div>
+<div class="top"><div><h1>Team</h1><p>Who works in this organization.</p></div></div><div class="row2 mg"><button class="btn lime" id="inv">Invite someone</button></div><div class="msg err mg" id="te" role="alert" hidden></div>
+<section class="sec" style="max-width:none"><h2>Members</h2><div class="tblw"><table class="tbl"><thead><tr><th>Member</th><th>Role</th><th>Status</th></tr></thead><tbody id="mb"></tbody></table></div></section>
+<section class="sec" style="max-width:none"><h2>Pending invitations</h2><div class="tblw"><table class="tbl"><thead><tr><th>Email</th><th>Role</th><th>Expires</th><th></th></tr></thead><tbody id="iv"></tbody></table></div><p class="empty" id="ie" hidden><b>No pending invitations</b>Invite a teammate to get started.</p></section>
+<dialog id="dg"><form method="dialog" id="df"><h2>Invite someone</h2><p style="color:var(--muted);margin:8px 0 18px">They’ll get an email with a link to join.</p><div class="msg err mg" id="derr" role="alert" hidden></div>
+<div class="fld"><label for="ie2">Email</label><input id="ie2" type="email" required></div><div class="fld"><label for="ir">Role</label><select id="ir"><option>Member</option><option>Admin</option></select></div>
+<div class="row2"><button class="btn lime" type="submit">Send invitation</button><button class="btn" type="button" id="cx">Cancel</button></div></form></dialog>
+</main></div>
+

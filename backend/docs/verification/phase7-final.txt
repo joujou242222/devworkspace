@@ -1,0 +1,37 @@
+Phase 7 final verification, 2026-10-18, D:\Devworkspace.
+Commands below actually executed; exit 0 was observed for each listed final run.
+No prior-phase historical result is substituted. Repeated attempts are not summed as unique tests.
+
+pnpm build | exit 0 | build passed
+pnpm --filter @devworkspace/web build | exit 0 | build passed
+pnpm test:native | exit 0 | 7/7 passed
+pnpm test:integration | exit 0 | 20/20 passed
+pnpm test:phase2 | exit 0 | 20/20 passed
+pnpm test:phase3 | exit 0 | 27/27 passed
+pnpm test:phase4 | exit 0 | 24/24 passed
+pnpm test:phase5 | exit 0 | 21/21 passed
+pnpm test:phase6 | exit 0 | 19/19 passed
+pnpm test:phase7 | exit 0 | 13/13 passed
+node --test --test-timeout=300000 --test-name-pattern="all additive migrations" tests/phase4/api.test.mjs | exit 0 | 1/1 passed
+pnpm test:e2e:experiment | exit 0 | 1/1 passed
+pnpm test:e2e | exit 0 | 1/1 passed
+pnpm test:e2e:phase3 | exit 0 | 2/2 passed
+pnpm test:e2e:phase4 | exit 0 | 3/3 passed
+pnpm test:e2e:phase5 | exit 0 | 2/2 passed
+pnpm test:e2e:phase6 | exit 0 | 1/1 passed
+pnpm test:e2e:phase7 | exit 0 | 1/1 passed
+
+pnpm check | exit 0 | runtime/boundaries/docs/infra/OpenAPI/environment/lint/types, 13/13 unit tests and formatting passed
+git diff --check | exit 0 | final whitespace check passed (existing CRLF normalization warnings)
+
+Mode separation: application stopped for native restart, then separate experiment mode for V01 API/browser; product mode restored for domain/browser suites.
+Phase 4 includes all eight actual AppContainer/scanner/renderer isolation cases.
+0042 was followed by full Phase 2–7 reruns; 0043 only aligns document HTTP(S) scheme validation and was followed by Phase 7, fresh schema, production build and browser verification.
+Original post-0034 preflight: Phase 4 24/24; Phase 5 21/21; focused units 4/4, all exit 0 before implementation edits.
+Initial Phase 6 regression run: 8/19 passed, 11 failed; original assignment predicate regression caused missing notices and dependent fixture failures. 0042 repair: unchanged Phase 6 suite 19/19, plus Phase 7 assignment integration regression.
+Initial Phase 3 browser run: 1/2 passed, login P2028/extended timeout. Unchanged rerun: 2/2 in 16.3 seconds. Post-failure inspection found no persistent blocker; rerun sampling saw one zero-second worker transaction wait. Definitive root cause is not claimed.
+Other development failures/corrections are retained in the Phase 7 report and private logs.
+
+Final security inventory: all five expansion tables FORCE RLS; runtime API and communications purpose have no superuser/BYPASSRLS; purpose is NOLOGIN without schema CREATE.
+Final preservation: all 34 prior migration files unchanged; all 43 applied hashes match; no missing baseline files; pnpm lockfile unchanged.
+Additional final client-project link check: web build passed, followed by fresh Phase 7 backend 13/13 and browser 1/1, including P33 -> P36 project filter.

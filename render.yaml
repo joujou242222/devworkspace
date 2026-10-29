@@ -1,0 +1,89 @@
+services:
+  # DevWorkspace REST API Service
+  - type: web
+    name: devworkspace-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node scripts/prod-start.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: PNPM_VERSION
+        value: 10.18.1
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: EXPERIMENT_AUTH_ENABLED
+        value: "false"
+      - key: PRODUCT_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: devworkspace-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: devworkspace-redis
+          property: connectionString
+      - key: APP_ORIGIN
+        sync: false # Set to your Vercel frontend URL, e.g. https://devworkspace.vercel.app
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+
+  # DevWorkspace Background Worker (Tasks, Deliverables, Email delivery)
+  - type: worker
+    name: devworkspace-worker
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node apps/worker/dist/main.js
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: PNPM_VERSION
+        value: 10.18.1
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: devworkspace-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: devworkspace-redis
+          property: connectionString
+      - key: APP_ORIGIN
+        sync: false
+
+  # DevWorkspace Frontend (if deploying on Render instead of Vercel)
+  - type: web
+    name: devworkspace-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: node prod-server.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: devworkspace-api
+          property: host
+
+databases:
+  - name: devworkspace-db
+    plan: free
+    databaseName: devworkspace
+    user: devworkspace_owner

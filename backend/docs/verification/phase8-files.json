@@ -1,0 +1,91 @@
+{
+  "baselineFiles": 246,
+  "missing": [],
+  "modified": [
+    "./AGENTS.md",
+    "./apps/web/app/auth.ts",
+    "./apps/web/app/core.tsx",
+    "./apps/web/app/expansion.tsx",
+    "./apps/web/app/files.tsx",
+    "./apps/web/app/flows.tsx",
+    "./apps/web/app/global.css",
+    "./apps/web/app/layout.tsx",
+    "./apps/web/app/notifications.tsx",
+    "./apps/web/app/page.tsx",
+    "./apps/web/app/portal/[orgId]/[[...review]]/page.tsx",
+    "./apps/web/app/reviews.tsx",
+    "./apps/web/app/w/[orgId]/[[...core]]/page.tsx",
+    "./docs/ARCHITECTURE.md",
+    "./docs/IMPLEMENTATION_PLAN.md",
+    "./docs/TESTING.md",
+    "./docs/traceability/FEATURE_MATRIX.md",
+    "./infra/README.md",
+    "./package.json",
+    "./packages/contracts/openapi.json",
+    "./packages/contracts/src/client.generated.ts",
+    "./packages/contracts/src/phase2.ts",
+    "./packages/contracts/src/phase3.ts",
+    "./packages/contracts/src/phase5.ts",
+    "./packages/server/src/reviews.ts",
+    "./README.md",
+    "./scripts/check-docs.mjs",
+    "./scripts/openapi.mjs",
+    "./tests/e2e/phase5.spec.ts",
+    "./tests/e2e/phase7.spec.ts"
+  ],
+  "added": [
+    "./apps/web/app/navigation.tsx",
+    "./apps/web/app/session-boundary.tsx",
+    "./apps/web/app/view-state.ts",
+    "./docs/PHASE_8_REPORT.md",
+    "./docs/traceability/PHASE_8_ACTIONS.md",
+    "./docs/verification/phase8-files.json",
+    "./docs/verification/phase8-final.txt",
+    "./tests/e2e/phase8.spec.ts",
+    "./tests/phase8/integration.test.mjs",
+    "./tests/unit/phase8.test.mjs"
+  ],
+  "priorMigrationFiles": 43,
+  "allPriorMigrationsUnchanged": true,
+  "appliedMigrations": 43,
+  "appliedHashesMatchingSource": 43,
+  "lockfileUnchanged": true,
+  "localConfigurationUnchanged": true,
+  "runtimeRoles": [
+    {
+      "rolname": "dw2_api",
+      "rolsuper": false,
+      "rolbypassrls": false,
+      "rolcanlogin": true
+    },
+    {
+      "rolname": "dw2_communications",
+      "rolsuper": false,
+      "rolbypassrls": false,
+      "rolcanlogin": false
+    },
+    {
+      "rolname": "dw2_dispatch",
+      "rolsuper": false,
+      "rolbypassrls": false,
+      "rolcanlogin": true
+    },
+    {
+      "rolname": "dw2_identity",
+      "rolsuper": false,
+      "rolbypassrls": false,
+      "rolcanlogin": true
+    },
+    {
+      "rolname": "dw2_worker",
+      "rolsuper": false,
+      "rolbypassrls": false,
+      "rolcanlogin": true
+    }
+  ],
+  "tenantRls": {
+    "tables": 46,
+    "forced": true
+  },
+  "reviewedGlobalException": "onboarding_receipt: global self-scoped bootstrap receipt, not a tenant runtime table"
+}

@@ -1,0 +1,14 @@
+
+/* Dialog buttons: preview sandboxes without "allow-forms" silently block <form method="dialog"> submit buttons.
+   Handle them here instead: run the form's submit handlers, then close the dialog unless a handler cancelled it. */
+document.addEventListener('click',function(e){
+ var b=e.target.closest&&e.target.closest('button');
+ if(!b||b.disabled||b.type==='button'||b.type==='reset')return;
+ var f=b.form||b.closest('form');
+ if(!f||f.getAttribute('method')!=='dialog')return;
+ var d=f.closest('dialog');if(!d)return;
+ e.preventDefault();
+ if(f.checkValidity&&!f.checkValidity()){f.reportValidity();return}
+ var ev;try{ev=new SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:b})}catch(x){ev=new Event('submit',{bubbles:true,cancelable:true})}
+ if(f.dispatchEvent(ev))d.close(b.value);
+},true);

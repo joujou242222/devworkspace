@@ -1,0 +1,154 @@
+{
+  "date": "2026-10-16",
+  "kind": "final-state inventory; not a baseline comparison",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "eb24cf91070ed60a1a01903e9708caf53681f29bba34af943d4352b5d005d03a"
+    },
+    {
+      "path": "README.md",
+      "sha256": "61828ba84f2a74d12b2ce0382c8757b21ced5f8ee4f420ac0c3cb97b859b41b1"
+    },
+    {
+      "path": "apps/web/app/core.tsx",
+      "sha256": "e6e0738624dcb8b7545ae91a8ece11762994a963b5752c8ea1c3f5ceebf71453"
+    },
+    {
+      "path": "apps/web/app/flows.tsx",
+      "sha256": "3d9db799103e25efdc624d30464f6106956318d42688472999b06a0b60d88f98"
+    },
+    {
+      "path": "apps/web/app/page.tsx",
+      "sha256": "d3a48d4b985b41a0f189bbf34a6d3ecf3eac7c4cd7e264d38cb9a6fe2fb289f5"
+    },
+    {
+      "path": "apps/web/app/w/[orgId]/[[...core]]/page.tsx",
+      "sha256": "e59ce249ffec17bf09d1fb82393bd91d87dae735e0f3fc12c8cbf475915dbd9e"
+    },
+    {
+      "path": "apps/web/next-env.d.ts",
+      "sha256": "1b59d4c6b83807db275d43f3cf2cc8e9323f465fab764eea091cc5becd5bad37"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "911c95e7285dcf79af69087d0d39de626939611a0926f02ea9fa034b3fda673c"
+    },
+    {
+      "path": "docs/DATA_MODEL.md",
+      "sha256": "9c544a89849e556fbf4fb8fd11993ce14454c8dd79ece03b17f9c303674da92e"
+    },
+    {
+      "path": "docs/IMPLEMENTATION_PLAN.md",
+      "sha256": "4c289d8552e0933b80755190cbfa6b7a41f43133ce687aa5300afa178a1458ea"
+    },
+    {
+      "path": "docs/PHASE_3_REPORT.md",
+      "sha256": "fab769bd55191014644b44d63c38bc036b2ee43f771846d85795740a81618434"
+    },
+    {
+      "path": "docs/SECURITY.md",
+      "sha256": "6fcb4872e95ec10d68dc487d8303acd3175c0a714239beda79571c3dc7379284"
+    },
+    {
+      "path": "docs/TESTING.md",
+      "sha256": "fbdcfc2b743670f6589d1c07d6907e1cca52f9eab02e8f33549b3cf8c5aefaca"
+    },
+    {
+      "path": "docs/traceability/FEATURE_MATRIX.md",
+      "sha256": "50181d089c588433c1e9add1fcaaf294a371251b17c3390046c0c51cdbd297be"
+    },
+    {
+      "path": "docs/verification/phase3-final.txt",
+      "sha256": "cdc6d2824ec588591dab556ee2255261e362f928fc9227a0f9b2a40226c3f56d"
+    },
+    {
+      "path": "infra/README.md",
+      "sha256": "7f042b5177cfc0931ff2245373e92d514a1a3551070ec6efb8aa7c94d0584125"
+    },
+    {
+      "path": "package.json",
+      "sha256": "d30bedb7d28260fb45f327a3fc0d643060d10ec6744c62c7bbcae579b806fa3c"
+    },
+    {
+      "path": "packages/contracts/openapi.json",
+      "sha256": "0ee273bb2fa8985a82234fd5ceccae63eace40cabec5ba2207fa1d31f83f9a94"
+    },
+    {
+      "path": "packages/contracts/src/client.generated.ts",
+      "sha256": "2961e09e8b6bf495ac37ddaa44a910b471350c864dca64a2a899296a191bfbcd"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "00a3e28ec40b8dc1bf00c841c5ba77432f40e8b90877b30d8545ce0468be6e05"
+    },
+    {
+      "path": "packages/contracts/src/operations.ts",
+      "sha256": "953b00a328fb2aa8ee8293833389f15a34145b3baeed1fa71fe0e5200daef5f7"
+    },
+    {
+      "path": "packages/contracts/src/phase2.ts",
+      "sha256": "72706fa392e160dfe28f63ce33e2950c5b44e592a6b6d350716ae742d9df6502"
+    },
+    {
+      "path": "packages/contracts/src/phase3.ts",
+      "sha256": "e8a7aef9de2d1bac46a61d222201b933bd21584b0958b00ae04e71c4b465217b"
+    },
+    {
+      "path": "packages/database/prisma/product/0010-core.sql",
+      "sha256": "150631f0dcfb93aab1794a93870d93cf6316951f13fc1cf07ebf32e71aa4ed05"
+    },
+    {
+      "path": "packages/database/prisma/product/0011-client-access.sql",
+      "sha256": "17a705828ac40656c9a9459e16938e2434533f37a1df84fa2df7b6a45d9308bd"
+    },
+    {
+      "path": "packages/database/prisma/product/0012-core-bindings.sql",
+      "sha256": "d591c876dfcc7e02c47502fc6a3371d00cedce124e946715cf4280a9a22a87cf"
+    },
+    {
+      "path": "packages/database/prisma/product/schema.prisma",
+      "sha256": "8fce873259637cccbb461d18e5b560f9aea2eb90e2f7180267cf7f220e4be292"
+    },
+    {
+      "path": "packages/server/src/client-access.ts",
+      "sha256": "66f46d05a974812e34164975f4a87a0fd245125a6a7da498208415b93615cfda"
+    },
+    {
+      "path": "packages/server/src/core.ts",
+      "sha256": "e0ca42216291f681835be6b16810f51be3c30ca06a5f20da808fab9ced8eb974"
+    },
+    {
+      "path": "packages/server/src/organizations.ts",
+      "sha256": "3a20b6843e041380689dc4a2f794a27008eae3c71ccd18eca96176008e4b78ef"
+    },
+    {
+      "path": "packages/server/src/product.ts",
+      "sha256": "287ab8ac26928d42d9af82cd9b867b84fc0c4184ad03b008e5b5d162cbae6020"
+    },
+    {
+      "path": "scripts/check-docs.mjs",
+      "sha256": "4b8354fc879b31c36859d0010672d4b13ec85028d9278a192ffd4a4f006d6ed3"
+    },
+    {
+      "path": "scripts/openapi.mjs",
+      "sha256": "6ca4404c4ece2498b8ed060c09b8a2ab94d738f0c313b52d8bfbf3f3c471b2ce"
+    },
+    {
+      "path": "scripts/prepare-phase2.mjs",
+      "sha256": "4754205715eea56b718e37da8dff66e128332225d5c88972bb6577fb4c4f3598"
+    },
+    {
+      "path": "tests/e2e/phase3.spec.ts",
+      "sha256": "968580d37a788abeb061670c8914858ab42fb882775b5424138476f9aa5ff470"
+    },
+    {
+      "path": "tests/phase3/core.test.mjs",
+      "sha256": "491468a747cea7cc029a7f989769cfc70c6a220f6d0e8f0948a866a027ba7a81"
+    },
+    {
+      "path": "tests/unit/phase3.test.mjs",
+      "sha256": "76395a6bd220382f8b775ea82c533cacb7752aa738a152a83411b26e4ace1bf8"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+__MACOSX/
+.vscode/
+.idea/
+
+# Environment & Sensitive
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Dependencies & Build Cache
+node_modules/
+.pnpm-store/
+.local/
+dist/
+.next/
+build/
+*.tsbuildinfo
+coverage/
+*.zip

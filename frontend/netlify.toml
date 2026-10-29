@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://api.yourdomain.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/workspace/:page"
+  to = "/workspace/:page.html"
+  status = 200
+
+[[redirects]]
+  from = "/project/:page"
+  to = "/project/:page.html"
+  status = 200
+
+[[redirects]]
+  from = "/portal/:page"
+  to = "/portal/:page.html"
+  status = 200
+
+[[redirects]]
+  from = "/:page"
+  to = "/:page.html"
+  status = 200

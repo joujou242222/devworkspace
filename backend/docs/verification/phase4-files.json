@@ -1,0 +1,346 @@
+{
+  "date": "2026-10-17",
+  "kind": "Phase 4 baseline comparison; ignored runtime/private files excluded",
+  "baselineFiles": 153,
+  "baselineMissing": [],
+  "originalMigrationsUnchanged": 12,
+  "excludedToAvoidSelfHashCycles": [
+    "docs/PHASE_4_REPORT.md",
+    "docs/verification/phase4-files.json",
+    "docs/verification/phase4-final.txt"
+  ],
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "kind": "modified-baseline",
+      "sha256": "6ba943a3c9dc0e4f4f41192a1168e72804fc318b00c745df7706b4bb9009490e",
+      "baselineSha256": "eb24cf91070ed60a1a01903e9708caf53681f29bba34af943d4352b5d005d03a"
+    },
+    {
+      "path": "README.md",
+      "kind": "modified-baseline",
+      "sha256": "1162f923130bdd85f92d875b017666f512f23f9725bbf59c80b68c3430691fa1",
+      "baselineSha256": "61828ba84f2a74d12b2ce0382c8757b21ced5f8ee4f420ac0c3cb97b859b41b1"
+    },
+    {
+      "path": "apps/api/src/app.ts",
+      "kind": "modified-baseline",
+      "sha256": "9908aa0fdcd71369f542113fe0878c0affc91e556be23aab789730baf2ef6d41",
+      "baselineSha256": "896bb12165d93bb01a03a80df8a7687a1d7df98cc17a85f3f39b95f4f6c0aa8e"
+    },
+    {
+      "path": "apps/web/app/core.tsx",
+      "kind": "modified-baseline",
+      "sha256": "cde33db0bdbf8fa8adb092a8d66e7ca53707d7c1be2d690826bdd257f59f683d",
+      "baselineSha256": "e6e0738624dcb8b7545ae91a8ece11762994a963b5752c8ea1c3f5ceebf71453"
+    },
+    {
+      "path": "apps/web/app/files.tsx",
+      "kind": "added",
+      "sha256": "b0515bc45a41a3b311cc0703ca471a8d142e6aa0cdd5b631800f70ce3525d065"
+    },
+    {
+      "path": "apps/web/app/flows.tsx",
+      "kind": "modified-baseline",
+      "sha256": "2943afe639ca2e3454973e1093203a85e6c94d22054ea3998517dedc24175f3e",
+      "baselineSha256": "3d9db799103e25efdc624d30464f6106956318d42688472999b06a0b60d88f98"
+    },
+    {
+      "path": "apps/worker/src/files.ts",
+      "kind": "added",
+      "sha256": "450ea43a15b4678c83fc36d94951f3f912b70b73d65ca1d05999e8dc4f2e3318"
+    },
+    {
+      "path": "apps/worker/src/main.ts",
+      "kind": "modified-baseline",
+      "sha256": "0b97b93ee18728422d8421a427d07e232138296b4e2f0751496fab8a97540fa9",
+      "baselineSha256": "7f7523fdd466387c74de6e5d0edcc3901005e26a5c260d47e97ea9fa989804cb"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "kind": "modified-baseline",
+      "sha256": "f234e6b64892a7ebc1621b02c97ee8ec37ff8f6cd95dc9e923e602d10e2bba64",
+      "baselineSha256": "911c95e7285dcf79af69087d0d39de626939611a0926f02ea9fa034b3fda673c"
+    },
+    {
+      "path": "docs/DATA_MODEL.md",
+      "kind": "modified-baseline",
+      "sha256": "414c2c768756e84d5e4db262f20804640a122c288f501816f461b6bc13d04428",
+      "baselineSha256": "9c544a89849e556fbf4fb8fd11993ce14454c8dd79ece03b17f9c303674da92e"
+    },
+    {
+      "path": "docs/DEPENDENCY_VERSIONS.md",
+      "kind": "modified-baseline",
+      "sha256": "17b27f2a417b9135fbb82ef42a76fdc8785370a9a097ca4a425ade7dc3929a7e",
+      "baselineSha256": "a4870181d5fafc2dfdf8730878a54d5893e9f6618eff10df649ee21446ead848"
+    },
+    {
+      "path": "docs/IMPLEMENTATION_PLAN.md",
+      "kind": "modified-baseline",
+      "sha256": "866a5e331f6eb9db4b1c2fc68d13d9ca977781a7f642e3250e78191f371c1439",
+      "baselineSha256": "4c289d8552e0933b80755190cbfa6b7a41f43133ce687aa5300afa178a1458ea"
+    },
+    {
+      "path": "docs/SECURITY.md",
+      "kind": "modified-baseline",
+      "sha256": "0733b34e19e57e5308d57bdb0be5040f387fd9b2a5eb62b7d723208108825446",
+      "baselineSha256": "6fcb4872e95ec10d68dc487d8303acd3175c0a714239beda79571c3dc7379284"
+    },
+    {
+      "path": "docs/TESTING.md",
+      "kind": "modified-baseline",
+      "sha256": "accf786cb3713b37ed56c62b8ca624e3dbb66202d7a711a5b3d6f6b6c986240f",
+      "baselineSha256": "fbdcfc2b743670f6589d1c07d6907e1cca52f9eab02e8f33549b3cf8c5aefaca"
+    },
+    {
+      "path": "docs/traceability/FEATURE_MATRIX.md",
+      "kind": "modified-baseline",
+      "sha256": "9612cb993a390002c131d1915c14358fc4c22aabd4c38106d23d832f4179a9a2",
+      "baselineSha256": "50181d089c588433c1e9add1fcaaf294a371251b17c3390046c0c51cdbd297be"
+    },
+    {
+      "path": "infra/README.md",
+      "kind": "modified-baseline",
+      "sha256": "13b18c26143637d6113255fcfd605c53cb5a8a96624e670b99c6bca10fdfa7e4",
+      "baselineSha256": "7f042b5177cfc0931ff2245373e92d514a1a3551070ec6efb8aa7c94d0584125"
+    },
+    {
+      "path": "infra/processing-tools.json",
+      "kind": "added",
+      "sha256": "3f9640cc45ce2a9d10feaf05e6ca79f58d32c4e5589cb4808582eece045710a4"
+    },
+    {
+      "path": "package.json",
+      "kind": "modified-baseline",
+      "sha256": "29bdd1e0763d5396266a57622e39212b8439f2468867ef00a2d520946d8e02df",
+      "baselineSha256": "d30bedb7d28260fb45f327a3fc0d643060d10ec6744c62c7bbcae579b806fa3c"
+    },
+    {
+      "path": "packages/contracts/openapi.json",
+      "kind": "modified-baseline",
+      "sha256": "474627255050279890bfc60fdc462195eb18ea6f3301c44cf41f498b53db02ca",
+      "baselineSha256": "0ee273bb2fa8985a82234fd5ceccae63eace40cabec5ba2207fa1d31f83f9a94"
+    },
+    {
+      "path": "packages/contracts/src/client.generated.ts",
+      "kind": "modified-baseline",
+      "sha256": "928817e5de2de48716a3036b783b145b0c2165d7b926e5cdf3223e910ed79039",
+      "baselineSha256": "2961e09e8b6bf495ac37ddaa44a910b471350c864dca64a2a899296a191bfbcd"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "kind": "modified-baseline",
+      "sha256": "5dfdde24440946891cb723e661e4ce5b21372a9f3e3aa8da622ea5b1ced02989",
+      "baselineSha256": "00a3e28ec40b8dc1bf00c841c5ba77432f40e8b90877b30d8545ce0468be6e05"
+    },
+    {
+      "path": "packages/contracts/src/operations.ts",
+      "kind": "modified-baseline",
+      "sha256": "9e335e3103cee79be74863567d6dc1b07650ec5fc209c698d8895e992424e0a3",
+      "baselineSha256": "953b00a328fb2aa8ee8293833389f15a34145b3baeed1fa71fe0e5200daef5f7"
+    },
+    {
+      "path": "packages/contracts/src/phase2.ts",
+      "kind": "modified-baseline",
+      "sha256": "0ab01bf9195671ad820dec54e23b2ba31777111148ee67eca0956ebb7e1b47d6",
+      "baselineSha256": "72706fa392e160dfe28f63ce33e2950c5b44e592a6b6d350716ae742d9df6502"
+    },
+    {
+      "path": "packages/contracts/src/phase3.ts",
+      "kind": "modified-baseline",
+      "sha256": "23e31ee9914d5f0ac975fce68e5da87773ab7bae6cdfa98fd86b68bd1bd6dd87",
+      "baselineSha256": "e8a7aef9de2d1bac46a61d222201b933bd21584b0958b00ae04e71c4b465217b"
+    },
+    {
+      "path": "packages/contracts/src/phase4.ts",
+      "kind": "added",
+      "sha256": "a973d5503f3c07ef15ae2e074e14365430a98786934352ee7992c4642e2fb300"
+    },
+    {
+      "path": "packages/database/prisma/product/0013-files.sql",
+      "kind": "added",
+      "sha256": "d96cc70bd68bc7dbcbbe9a1b489533dbf6230f3bb6d8fd74435b9b4fb1cc1e58"
+    },
+    {
+      "path": "packages/database/prisma/product/0014-file-processing.sql",
+      "kind": "added",
+      "sha256": "b39bdd08e2d435ef7ec8e690c358c31d1d21c90529d8b64e9e46ae3b7f1d2361"
+    },
+    {
+      "path": "packages/database/prisma/product/0015-media.sql",
+      "kind": "added",
+      "sha256": "8e27e67a7d1392ffca0893bac77c4d270d1ff48a59d97a8971c0c58f39f9b318"
+    },
+    {
+      "path": "packages/database/prisma/product/0016-file-integrity.sql",
+      "kind": "added",
+      "sha256": "6bc26d0a39211a6d384c0972c8d67ebaa233f1fdfc7c12fe14cc5c9bb06c174e"
+    },
+    {
+      "path": "packages/database/prisma/product/0017-staging-cleanup.sql",
+      "kind": "added",
+      "sha256": "f42126095de4f530d338de056a0441e7b259d75bf0f7044ec591d44d825c0d68"
+    },
+    {
+      "path": "packages/database/prisma/product/0018-processing-evidence.sql",
+      "kind": "added",
+      "sha256": "4d2e7cff407409f3c51912da7b1e89106e6e4e7f1f38adba2a7400391390672f"
+    },
+    {
+      "path": "packages/database/prisma/product/0019-profile-audit.sql",
+      "kind": "added",
+      "sha256": "75a31a8bfa7208ab81f7368b32cbb87c1ead8f782722c034493c00cfdab4c18d"
+    },
+    {
+      "path": "packages/database/prisma/product/0020-terminal-staging-cleanup.sql",
+      "kind": "added",
+      "sha256": "ece6b50fbf0ba3f530ae80617a8d84eda53a694d38c806bb22bd44c858a64743"
+    },
+    {
+      "path": "packages/database/prisma/product/schema.prisma",
+      "kind": "modified-baseline",
+      "sha256": "61e884d580f5eedbca6c66a8ce651f6afb22abb5f90f6bce46b008750c0719d4",
+      "baselineSha256": "8fce873259637cccbb461d18e5b560f9aea2eb90e2f7180267cf7f220e4be292"
+    },
+    {
+      "path": "packages/server/package.json",
+      "kind": "modified-baseline",
+      "sha256": "85a9ffc00fd5c8fc70a5f177326b861beaa951a93dc4d86c2337c0061bf855f4",
+      "baselineSha256": "2905c5e559d9c68b729e969cf5dda12256e4401785a6ddbcdf2c59d30e1b43c1"
+    },
+    {
+      "path": "packages/server/src/files.ts",
+      "kind": "added",
+      "sha256": "fa9265b2ff23cc10641546f31938d33358fcd47a0bed20b2237d96cac8fa5458"
+    },
+    {
+      "path": "packages/server/src/index.ts",
+      "kind": "modified-baseline",
+      "sha256": "45d4b9d2b3fedae3bd904b7b64ef42ab227a8d206ac5844776b564686d6d0065",
+      "baselineSha256": "e4c3eaf2480f0cf83ea6602be472651fc027326761cf683b5079196a2e8b4d64"
+    },
+    {
+      "path": "packages/server/src/media.ts",
+      "kind": "added",
+      "sha256": "798f7823df3ff131282670d03e8fdc8489cf6be476dc0658f58fc572c4d12aaa"
+    },
+    {
+      "path": "packages/server/src/processing.ts",
+      "kind": "added",
+      "sha256": "c487741d426d6925f4b87866aac4d8c8e55995cb8946d1efa1b046ddc53012e0"
+    },
+    {
+      "path": "packages/server/src/product.ts",
+      "kind": "modified-baseline",
+      "sha256": "d7d82633dc194584b9dd76fa2801756f0ee3b4a63df83b0b62b53a1e4df872c3",
+      "baselineSha256": "287ab8ac26928d42d9af82cd9b867b84fc0c4184ad03b008e5b5d162cbae6020"
+    },
+    {
+      "path": "packages/server/src/staging-cleanup.ts",
+      "kind": "added",
+      "sha256": "df5f2388a1f2545caefded9b7e282f4206fd5b1667405696686028462e8c22ac"
+    },
+    {
+      "path": "packages/server/src/storage.ts",
+      "kind": "added",
+      "sha256": "765fafc7ac9dbcabe89b60b7074227f308924ada3c3e165e577d1c87c0c97523"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "kind": "modified-baseline",
+      "sha256": "8f91af259eed419cf60637e07a4b815fd9edd70385b7edfbd2a0767f3fbbaba7",
+      "baselineSha256": "69566f8722ad7702552ecf0bb7512494e8c28b1b05185eb9f41bb9b3e6da39f1"
+    },
+    {
+      "path": "scripts/check-docs.mjs",
+      "kind": "modified-baseline",
+      "sha256": "0d7188df680e81f5aec005978727ec49ed57c0208039dfacce98064c929dac41",
+      "baselineSha256": "4b8354fc879b31c36859d0010672d4b13ec85028d9278a192ffd4a4f006d6ed3"
+    },
+    {
+      "path": "scripts/dev.mjs",
+      "kind": "modified-baseline",
+      "sha256": "c9b763da2e8fc202c06e1b85e652a980fbe99338924f43464ddf03d74479280f",
+      "baselineSha256": "820ff5df7c0fe5a1dc456522a40bd0b90d39d6589077036882a6ad2f66ce5b45"
+    },
+    {
+      "path": "scripts/file-processor.mjs",
+      "kind": "added",
+      "sha256": "f73d67a6159bbdfc0efa0986ccdf58040ae03bd5e49becdb25c629d5bb743602"
+    },
+    {
+      "path": "scripts/native-infra.mjs",
+      "kind": "modified-baseline",
+      "sha256": "6477be1c683bc192faffaa7e1f2679bb1e14f8b66b1d868cce3e0adf363b9777",
+      "baselineSha256": "553e90f5f0de416e715216d4ae9135cf1003c6a4228bd772f02f94fea82e0c81"
+    },
+    {
+      "path": "scripts/openapi.mjs",
+      "kind": "modified-baseline",
+      "sha256": "0f0a9fb77b739788b54a4dfc87e12ce902e4bcdba7129026f0c3ce32c85c6f90",
+      "baselineSha256": "6ca4404c4ece2498b8ed060c09b8a2ab94d738f0c313b52d8bfbf3f3c471b2ce"
+    },
+    {
+      "path": "scripts/prepare-phase2.mjs",
+      "kind": "modified-baseline",
+      "sha256": "9086ccf2ec8054a6b4d7bb3118d0beb04e6398c82980f92f66e1353c8a8114c1",
+      "baselineSha256": "4754205715eea56b718e37da8dff66e128332225d5c88972bb6577fb4c4f3598"
+    },
+    {
+      "path": "scripts/prepare-phase4-storage.mjs",
+      "kind": "added",
+      "sha256": "d43e2f0a53e3fa3d26073477a714bd0ff11913737bd78c4df5223f11dbccdf12"
+    },
+    {
+      "path": "scripts/prepare-processing.mjs",
+      "kind": "added",
+      "sha256": "6989a99968d5de49c81504f0d0e7629ef8b2a41c633bc45ddc43c884ac1c21e0"
+    },
+    {
+      "path": "scripts/processing-sandbox.cs",
+      "kind": "added",
+      "sha256": "52a9cee323d113eb12962131f1ead0b89682c921968f88c850fda476de40fc77"
+    },
+    {
+      "path": "scripts/processing-sandbox.ps1",
+      "kind": "added",
+      "sha256": "cff6614826d6483eef21784eb855aeddfcc7c54c8dec58d0d2cf29f2d99a711f"
+    },
+    {
+      "path": "scripts/provision-phase4-storage.mjs",
+      "kind": "added",
+      "sha256": "9ab1be44dd7b628a2389177a50a5b08bec28c493cd968ec1e229e04dee271ba9"
+    },
+    {
+      "path": "scripts/sandbox-probe.cjs",
+      "kind": "added",
+      "sha256": "749f5fe6a4ec46bde5e247d0deaa41e06a1f27f2d9bd831093b4a533846c255c"
+    },
+    {
+      "path": "tests/e2e/phase4.spec.ts",
+      "kind": "added",
+      "sha256": "95ad08225ea0fb1786b2d94d4b5f08cfe9a7c16d39d687876ec38248cf88a25b"
+    },
+    {
+      "path": "tests/phase4/api.test.mjs",
+      "kind": "added",
+      "sha256": "4c814d2453854883cfd80b5440d86693e09bba32f93e20e763bf8dcfa869a95d"
+    },
+    {
+      "path": "tests/phase4/fixtures.mjs",
+      "kind": "added",
+      "sha256": "7d5084b33112abbb90f3e3104e8cc06f28c681cb7799e8803220880d53dd3f74"
+    },
+    {
+      "path": "tests/phase4/sandbox.test.mjs",
+      "kind": "added",
+      "sha256": "c8e9f091a388651ce84a2755b1146f439e41e690ca9abb1bdb05835332bc0539"
+    },
+    {
+      "path": "tests/unit/phase3.test.mjs",
+      "kind": "modified-baseline",
+      "sha256": "8a3f6e5d0737370ea695748272d71a151996f88505e1561c79542ae31d1b4d57",
+      "baselineSha256": "76395a6bd220382f8b775ea82c533cacb7752aa738a152a83411b26e4ace1bf8"
+    }
+  ]
+}

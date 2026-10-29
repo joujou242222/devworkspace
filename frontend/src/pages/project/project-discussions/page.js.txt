@@ -1,0 +1,372 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var discussionsList = [];
+var currentDiscussion = null;
+var currentReplies = [];
+var membersMap = {};
+var isManager = false;
+var canWrite = false;
+
+function esc(s) {
+  return H.esc ? H.esc(s) : String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function getAuthorName(authorId) {
+  if (!authorId) return 'Team member';
+  return membersMap[authorId] || 'Team member';
+}
+
+function renderList() {
+  var lv = $('lv');
+  var tv = $('tv');
+  var em = $('em');
+  var tb = $('tb');
+
+  if (lv) { lv.hidden = false; lv.style.display = ''; }
+  if (tv) { tv.hidden = true; tv.style.display = 'none'; }
+  var ar = $('ar');
+  if (ar) { ar.hidden = true; ar.style.display = 'none'; }
+
+  if (em) {
+    em.hidden = discussionsList.length > 0;
+    em.style.display = discussionsList.length > 0 ? 'none' : '';
+  }
+  if (!tb) return;
+
+  tb.innerHTML = discussionsList.map(function(t, i) {
+    var isArchived = t.status === 'ARCHIVED';
+    var authorName = getAuthorName(t.author_id);
+    var replyCount = t.reply_count !== undefined ? t.reply_count : (t.replies ? t.replies.length : 0);
+
+    return '<tr>' +
+      '<td><a class="lnk" href="#" data-o="' + i + '">' + esc(t.title) + '</a>' +
+      (isArchived ? ' <span class="tag no">Archived</span>' : '') + '</td>' +
+      '<td>' + esc(authorName) + '</td>' +
+      '<td>' + replyCount + '</td>' +
+      '</tr>';
+  }).join('');
+
+  tb.querySelectorAll('[data-o]').forEach(function(a) {
+    a.onclick = function(e) {
+      e.preventDefault();
+      var idx = +a.dataset.o;
+      viewDiscussion(discussionsList[idx]);
+    };
+  });
+}
+
+async function viewDiscussion(disc) {
+  currentDiscussion = disc;
+  var lv = $('lv');
+  var tv = $('tv');
+  var tt = $('tt');
+  var rs = $('rs');
+  var ar = $('ar');
+  var rf = $('rf');
+  var rb = $('rb');
+  var ab = $('ab');
+
+  if (lv) { lv.hidden = true; lv.style.display = 'none'; }
+  if (tv) { tv.hidden = false; tv.style.display = ''; }
+  if (tt) tt.textContent = disc.title;
+
+  var isArchived = disc.status === 'ARCHIVED';
+  if (ar) {
+    ar.hidden = !isArchived;
+    ar.style.display = isArchived ? '' : 'none';
+  }
+
+  // Controls visibility based on permissions and archive status
+  var isLocked = isArchived || !canWrite;
+  if (rf) {
+    rf.hidden = isLocked;
+    rf.style.display = isLocked ? 'none' : '';
+  }
+  if (rb) {
+    rb.hidden = isLocked;
+    rb.style.display = isLocked ? 'none' : '';
+  }
+  var canArchive = !isArchived && isManager;
+  if (ab) {
+    ab.hidden = !canArchive;
+    ab.style.display = canArchive ? '' : 'none';
+  }
+
+  // Load replies from backend
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/discussions/' + disc.id + '/replies');
+    currentReplies = res.items || [];
+  } catch (_) {
+    currentReplies = [];
+  }
+
+  // Combine first message (disc.body) with subsequent replies
+  var allMessages = [
+    {
+      author_id: disc.author_id,
+      created_at: disc.created_at,
+      body: disc.body,
+      isFirst: true
+    }
+  ].concat(currentReplies);
+
+  if (rs) {
+    rs.innerHTML = allMessages.map(function(r, i) {
+      var authorName = getAuthorName(r.author_id);
+      var timeStr = r.created_at ? (H.formatRelativeTime ? H.formatRelativeTime(r.created_at) : r.created_at) : 'Recently';
+      return '<div class="cm' + (i ? ' re' : '') + '">' +
+        '<b style="font-weight:500">' + esc(authorName) + '</b> <small>' + esc(timeStr) + '</small><br>' +
+        esc(r.body) +
+        '</div>';
+    }).join('');
+  }
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = esc(clientName) + ' · <span class="tag">' + esc(uiStatus) + '</span>';
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadRoleAndMembers() {
+  try {
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+    var rawMembers = res.items || [];
+
+    rawMembers.forEach(function(m) {
+      if (m.name && m.membership_id) membersMap[m.membership_id] = m.name;
+      if (m.name && m.id) membersMap[m.id] = m.name;
+    });
+
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+      canWrite = true;
+    } else {
+      var myOrgMemberId = principal ? (principal.id || principal.membership_id) : '';
+      var pMember = rawMembers.find(function(pm) { return pm.membership_id === myOrgMemberId; });
+      isManager = pMember && pMember.role === 'MANAGER';
+      canWrite = pMember && (pMember.role === 'MANAGER' || pMember.role === 'CONTRIBUTOR');
+    }
+
+    if (currentProject && (currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED')) {
+      canWrite = false;
+    }
+
+    // Role notices
+    var ro = $('ro');
+    var nt = $('nt');
+    if (!canWrite) {
+      if (ro) { ro.hidden = false; ro.style.display = ''; }
+      if (nt) { nt.hidden = true; nt.style.display = 'none'; }
+    } else {
+      if (ro) { ro.hidden = true; ro.style.display = 'none'; }
+      if (nt) { nt.hidden = false; nt.style.display = ''; }
+    }
+  } catch (err) {
+    console.error('[DISCUSSIONS LOAD ROLE ERROR]', err);
+    isManager = false;
+    canWrite = false;
+  }
+}
+
+async function loadDiscussions() {
+  try {
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/discussions');
+    discussionsList = res.items || [];
+    renderList();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Pre-hide New topic button for standard members until role verified
+  var ntBtn = $('nt');
+  if (ntBtn && principal && principal.role === 'MEMBER') {
+    ntBtn.hidden = true;
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Back button
+  var bk = $('bk');
+  if (bk) {
+    bk.onclick = function() {
+      renderList();
+    };
+  }
+
+  // Dialog cancel
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var dlg = b.closest('dialog');
+      if (dlg) dlg.close();
+    };
+  });
+
+  // New topic button
+  if (ntBtn) {
+    ntBtn.onclick = function() {
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+      var nt2 = $('nt2');
+      var nm = $('nm');
+      if (nt2) nt2.value = '';
+      if (nm) nm.value = '';
+      var dg = $('dg');
+      if (dg && dg.showModal) dg.showModal();
+    };
+  }
+
+  // New topic submit
+  var dgf = $('dgf');
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      var derr = $('derr');
+      if (derr) derr.hidden = true;
+
+      var nt2 = $('nt2');
+      var nm = $('nm');
+      var title = nt2 ? nt2.value.trim() : '';
+      var body = nm ? nm.value.trim() : '';
+
+      if (!title || !body) {
+        if (derr) {
+          derr.textContent = 'Add a title and a first message.';
+          derr.hidden = false;
+        }
+        return;
+      }
+
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/discussions',
+          { title: title, body: body }
+        );
+
+        var dg = $('dg');
+        if (dg) dg.close();
+
+        await loadDiscussions();
+      } catch (err) {
+        if (derr) {
+          derr.textContent = err.message || 'Failed to start topic.';
+          derr.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Post reply button
+  var rb = $('rb');
+  if (rb) {
+    rb.onclick = async function() {
+      if (!currentDiscussion) return;
+      var rt = $('rt');
+      var replyText = rt ? rt.value.trim() : '';
+      if (!replyText) return;
+
+      rb.disabled = true;
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/discussions/' + currentDiscussion.id + '/replies',
+          { body: replyText }
+        );
+        if (rt) rt.value = '';
+        rb.disabled = false;
+        await viewDiscussion(currentDiscussion);
+      } catch (err) {
+        rb.disabled = false;
+        console.error('Failed to post reply:', err);
+      }
+    };
+  }
+
+  // Archive topic button
+  var ab = $('ab');
+  if (ab) {
+    ab.onclick = async function() {
+      if (!currentDiscussion) return;
+
+      var confirmed = await (H && H.askConfirm ? H.askConfirm(
+        'Archive this topic? It becomes read-only.',
+        { title: 'Archive topic?', confirmText: 'Archive', danger: true }
+      ) : Promise.resolve(window.confirm('Archive this topic? It becomes read-only.')));
+
+      if (!confirmed) return;
+
+      ab.disabled = true;
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/discussions/' + currentDiscussion.id + '/archive',
+          {},
+          { revision: currentDiscussion.revision }
+        );
+        currentDiscussion.status = 'ARCHIVED';
+        ab.disabled = false;
+        await viewDiscussion(currentDiscussion);
+      } catch (err) {
+        ab.disabled = false;
+        console.error('Failed to archive topic:', err);
+      }
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadRoleAndMembers();
+    await loadDiscussions();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+initPage();

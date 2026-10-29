@@ -1,0 +1,510 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var membersData = [];
+var grantsData = [];
+var contactsData = [];
+var candidatesData = [];
+var isManager = false;
+var activeContactToRemove = null;
+
+function esc(s) {
+  return H.esc ? H.esc(s) : String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function getInitials(name) {
+  if (!name) return 'U';
+  var p = name.trim().split(/\s+/);
+  if (p.length > 1) return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function canUserEdit() {
+  if (!currentProject || currentProject.status === 'COMPLETED' || currentProject.status === 'ARCHIVED') {
+    return false;
+  }
+  return isManager;
+}
+
+function renderInternalTeam() {
+  var it = $('it');
+  if (!it) return;
+
+  var canEdit = canUserEdit();
+  var managersCount = membersData.filter(function(m) {
+    return m.status === 'ACTIVE' && m.role === 'MANAGER';
+  }).length;
+
+  var rowsHtml = membersData.map(function(m, i) {
+    var isArchived = m.status === 'INACTIVE';
+    var initials = getInitials(m.name);
+    var roleLabel = m.role === 'MANAGER' ? 'Manager' : (m.role === 'CONTRIBUTOR' ? 'Contributor' : 'Viewer');
+
+    var selectHtml = '';
+    if (canEdit && !isArchived) {
+      selectHtml = '<select class="sel" data-i="' + i + '" aria-label="Role for ' + esc(m.name) + '">' +
+        '<option value="MANAGER"' + (m.role === 'MANAGER' ? ' selected' : '') + '>Manager</option>' +
+        '<option value="CONTRIBUTOR"' + (m.role === 'CONTRIBUTOR' ? ' selected' : '') + '>Contributor</option>' +
+        '<option value="VIEWER"' + (m.role === 'VIEWER' ? ' selected' : '') + '>Viewer</option>' +
+        '<option value="REMOVE">Remove</option>' +
+        '</select>';
+    } else {
+      selectHtml = '<span class="st">' + esc(roleLabel) + '</span>' + (isArchived ? ' <span class="st bad">Removed</span>' : '');
+    }
+
+    return '<tr>' +
+      '<td><div class="who"><span class="av">' + esc(initials) + '</span>' + esc(m.name || 'Member') + '</div></td>' +
+      '<td>' + selectHtml + '</td>' +
+      '</tr>';
+  }).join('');
+
+  // Add Member row for managers
+  var addRowHtml = '';
+  if (canEdit && candidatesData.length > 0) {
+    var candidateOptions = candidatesData.map(function(c) {
+      return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+    }).join('');
+
+    addRowHtml = '<tr class="add-member-row">' +
+      '<td><select class="sel" id="am-c" aria-label="Select team member to add"><option value="">Add team member…</option>' + candidateOptions + '</select></td>' +
+      '<td><div class="row2" style="gap:8px">' +
+      '<select class="sel" id="am-r" aria-label="Select role"><option value="CONTRIBUTOR">Contributor</option><option value="VIEWER">Viewer</option><option value="MANAGER">Manager</option></select>' +
+      '<button class="btn sm lime" id="am-btn" type="button">Add</button>' +
+      '</div></td>' +
+      '</tr>';
+  }
+
+  it.innerHTML = rowsHtml + addRowHtml;
+
+  // Bind change handlers
+  if (canEdit) {
+    it.querySelectorAll('select[data-i]').forEach(function(s) {
+      s.onchange = async function() {
+        var idx = +s.dataset.i;
+        var m = membersData[idx];
+        if (!m) return;
+
+        var val = s.value;
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+
+        if (val === 'REMOVE') {
+          // Check last manager rule
+          if (m.role === 'MANAGER' && managersCount <= 1) {
+            if (ce) {
+              ce.textContent = 'A project needs at least one manager. Make someone else a manager first.';
+              ce.hidden = false;
+            }
+            renderInternalTeam();
+            return;
+          }
+
+          var confirmed = await (H && H.askConfirm ? H.askConfirm(
+            'Remove ' + m.name + ' from this project?',
+            { title: 'Remove member?', confirmText: 'Remove', danger: true }
+          ) : Promise.resolve(window.confirm('Remove ' + m.name + ' from this project?')));
+
+          if (!confirmed) {
+            renderInternalTeam();
+            return;
+          }
+
+          try {
+            await api.patch(
+              '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members/' + m.id,
+              { membership_id: m.membership_id, role: m.role, status: 'INACTIVE' },
+              { revision: m.revision }
+            );
+            await loadAccessData();
+          } catch (err) {
+            if (ce) {
+              ce.textContent = err.message || 'Failed to remove member.';
+              ce.hidden = false;
+            }
+            renderInternalTeam();
+          }
+          return;
+        }
+
+        // Role change
+        if (m.role === 'MANAGER' && val !== 'MANAGER' && managersCount <= 1) {
+          if (ce) {
+            ce.textContent = 'A project needs at least one manager. Make someone else a manager first.';
+            ce.hidden = false;
+          }
+          renderInternalTeam();
+          return;
+        }
+
+        try {
+          var updated = await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members/' + m.id,
+            { membership_id: m.membership_id, role: val, status: m.status },
+            { revision: m.revision }
+          );
+          m.role = updated.role;
+          m.revision = updated.revision;
+          await loadAccessData();
+        } catch (err) {
+          if (ce) {
+            ce.textContent = err.message || 'Failed to update member role.';
+            ce.hidden = false;
+          }
+          renderInternalTeam();
+        }
+      };
+    });
+
+    // Add button handler
+    var amBtn = $('am-btn');
+    if (amBtn) {
+      amBtn.onclick = async function() {
+        var amC = $('am-c');
+        var amR = $('am-r');
+        var memId = amC ? amC.value : '';
+        var role = amR ? amR.value : 'CONTRIBUTOR';
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+
+        if (!memId) {
+          if (ce) {
+            ce.textContent = 'Select a team member to add.';
+            ce.hidden = false;
+          }
+          return;
+        }
+
+        amBtn.disabled = true;
+        try {
+          await api.post(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members',
+            { membership_id: memId, role: role, status: 'ACTIVE' }
+          );
+          await loadAccessData();
+        } catch (err) {
+          amBtn.disabled = false;
+          if (ce) {
+            ce.textContent = err.message || 'Failed to add team member.';
+            ce.hidden = false;
+          }
+        }
+      };
+    }
+  }
+}
+
+function renderClientContacts() {
+  var ct = $('ct');
+  var em = $('em');
+  if (!ct) return;
+
+  var canEdit = canUserEdit();
+  if (em) em.hidden = contactsData.length > 0;
+
+  ct.innerHTML = contactsData.map(function(k, i) {
+    var g = k.grant;
+    var hasActiveAccess = g && g.status === 'ACTIVE';
+    var isApprover = hasActiveAccess && g.role === 'APPROVER';
+    var initials = getInitials(k.name);
+
+    var accessLabel = hasActiveAccess ? 'Active' : 'Not on this project';
+    var accessClass = hasActiveAccess ? 'ok' : '';
+
+    var decideCb = '<input class="t" type="checkbox" data-d="' + i + '"' +
+      (isApprover ? ' checked' : '') +
+      (canEdit && hasActiveAccess ? '' : ' disabled') +
+      ' aria-label="' + esc(k.name) + ' can decide">';
+
+    var actionBtn = '';
+    if (canEdit) {
+      if (hasActiveAccess) {
+        actionBtn = '<button class="btn sm red" data-r="' + i + '">Remove access</button>';
+      } else {
+        actionBtn = '<button class="btn sm lime" data-v="' + i + '">Invite</button>';
+      }
+    }
+
+    return '<tr>' +
+      '<td><div class="who"><span class="av">' + esc(initials) + '</span>' + esc(k.name || 'Contact') + '</div></td>' +
+      '<td><span class="st ' + accessClass + '">' + esc(accessLabel) + '</span></td>' +
+      '<td>' + decideCb + '</td>' +
+      '<td>' + actionBtn + '</td>' +
+      '</tr>';
+  }).join('');
+
+  if (canEdit) {
+    // "Can decide" checkbox toggle
+    ct.querySelectorAll('input[data-d]').forEach(function(cb) {
+      cb.onchange = async function() {
+        var idx = +cb.dataset.d;
+        var k = contactsData[idx];
+        if (!k || !k.grant) return;
+
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+        var newRole = cb.checked ? 'APPROVER' : 'REVIEWER';
+
+        cb.disabled = true;
+        try {
+          var updated = await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants/' + k.grant.id,
+            { contact_id: k.id, role: newRole, status: 'ACTIVE' },
+            { revision: k.grant.revision }
+          );
+          k.grant.role = updated.role;
+          k.grant.revision = updated.revision;
+          cb.disabled = false;
+        } catch (err) {
+          cb.disabled = false;
+          cb.checked = !cb.checked;
+          if (ce) {
+            ce.textContent = err.message || 'Failed to update contact decision role.';
+            ce.hidden = false;
+          }
+        }
+      };
+    });
+
+    // Invite / Grant access button
+    ct.querySelectorAll('button[data-v]').forEach(function(btn) {
+      btn.onclick = async function() {
+        var idx = +btn.dataset.v;
+        var k = contactsData[idx];
+        if (!k) return;
+
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+        btn.disabled = true;
+
+        try {
+          if (k.grant) {
+            // Re-activate existing grant with least privilege REVIEWER
+            var updated = await api.patch(
+              '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants/' + k.grant.id,
+              { contact_id: k.id, role: 'REVIEWER', status: 'ACTIVE' },
+              { revision: k.grant.revision }
+            );
+            k.grant = updated;
+          } else {
+            // Create new grant with REVIEWER
+            var created = await api.post(
+              '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants',
+              { contact_id: k.id, role: 'REVIEWER', status: 'ACTIVE' }
+            );
+            k.grant = created;
+          }
+          await loadAccessData();
+        } catch (err) {
+          btn.disabled = false;
+          if (ce) {
+            ce.textContent = err.message || 'Failed to grant access.';
+            ce.hidden = false;
+          }
+        }
+      };
+    });
+
+    // Remove access button
+    ct.querySelectorAll('button[data-r]').forEach(function(btn) {
+      btn.onclick = function() {
+        var idx = +btn.dataset.r;
+        var k = contactsData[idx];
+        if (!k || !k.grant) return;
+
+        activeContactToRemove = k;
+        var wm = $('wm');
+        if (wm) {
+          wm.textContent = 'Remove ' + k.name + '’s access to this project?';
+        }
+        var dg = $('dg');
+        if (dg && dg.showModal) dg.showModal();
+      };
+    });
+  }
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = esc(clientName) + ' · <span class="tag">' + esc(uiStatus) + '</span>';
+    }
+
+    var clientNote = document.querySelector('.sec p[style*="color:var(--muted)"]');
+    if (clientNote && currentProject.client_name) {
+      clientNote.textContent = 'Only contacts from ' + currentProject.client_name + ' can be added here. Contacts from other clients can’t.';
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadRole() {
+  try {
+    var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+    if (principal && principal.role !== 'MEMBER') {
+      isManager = true;
+    } else {
+      var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+      var rawMembers = res.items || [];
+      var myOrgMemberId = principal ? (principal.id || principal.membership_id) : '';
+      var pMember = rawMembers.find(function(pm) { return pm.membership_id === myOrgMemberId; });
+      isManager = pMember && pMember.role === 'MANAGER';
+    }
+  } catch (_) {
+    isManager = false;
+  }
+}
+
+async function loadAccessData() {
+  try {
+    // 1. Members
+    var memRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members');
+    membersData = memRes.items || [];
+
+    // 2. Candidates (only if manager)
+    if (isManager && currentProject && currentProject.status !== 'COMPLETED' && currentProject.status !== 'ARCHIVED') {
+      try {
+        var candRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/candidates');
+        candidatesData = candRes.items || [];
+      } catch (_) {
+        candidatesData = [];
+      }
+    } else {
+      candidatesData = [];
+    }
+
+    renderInternalTeam();
+
+    // 3. Grants and client contacts (grants requires manager role)
+    if (isManager && currentProject && currentProject.client_id) {
+      try {
+        var grantsRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants');
+        grantsData = grantsRes.items || [];
+      } catch (_) {
+        grantsData = [];
+      }
+
+      try {
+        var contactsRes = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id + '/contacts');
+        var rawContacts = contactsRes.items || [];
+      } catch (_) {
+        var rawContacts = [];
+      }
+
+      // Map contacts with matching grants
+      contactsData = rawContacts.map(function(c) {
+        var g = grantsData.find(function(grant) { return grant.contact_id === c.id; });
+        return {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          status: c.status,
+          grant: g || null
+        };
+      });
+    } else {
+      grantsData = [];
+      contactsData = [];
+    }
+
+    renderClientContacts();
+
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Dialog cancel
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var dlg = b.closest('dialog');
+      if (dlg) dlg.close();
+      activeContactToRemove = null;
+    };
+  });
+
+  // Remove access dialog submit
+  var dgf = $('dgf');
+  if (dgf) {
+    dgf.onsubmit = async function(e) {
+      e.preventDefault();
+      if (!activeContactToRemove || !activeContactToRemove.grant) return;
+
+      var ce = $('ce');
+      if (ce) ce.hidden = true;
+
+      try {
+        await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants/' + activeContactToRemove.grant.id,
+          { contact_id: activeContactToRemove.id, role: activeContactToRemove.grant.role, status: 'REVOKED' },
+          { revision: activeContactToRemove.grant.revision }
+        );
+        var dg = $('dg');
+        if (dg) dg.close();
+        activeContactToRemove = null;
+        await loadAccessData();
+      } catch (err) {
+        if (ce) {
+          ce.textContent = err.message || 'Failed to revoke access.';
+          ce.hidden = false;
+        }
+        var dg = $('dg');
+        if (dg) dg.close();
+      }
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadRole();
+    await loadAccessData();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+initPage();

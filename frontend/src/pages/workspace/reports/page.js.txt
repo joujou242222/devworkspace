@@ -1,0 +1,175 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var projectsList = [];
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function formatTurnaround(seconds) {
+  if (seconds == null || isNaN(seconds) || seconds <= 0) return '—';
+  if (seconds < 60) return Math.round(seconds) + 's';
+  if (seconds < 3600) return Math.round(seconds / 60) + ' min';
+  if (seconds < 86400) return (seconds / 3600).toFixed(1) + ' hours';
+  return (seconds / 86400).toFixed(1) + ' days';
+}
+
+async function loadReport() {
+  var fa = $('fa');
+  var fb = $('fb');
+  var ce = $('ce');
+  var lo = $('lo');
+  var out = $('out');
+  var fp = $('fp');
+
+  var a = fa ? fa.value : '';
+  var b = fb ? fb.value : '';
+
+  // Validate start date before end date
+  if (a && b && a > b) {
+    if (ce) ce.hidden = false;
+    if (lo) lo.hidden = true;
+    if (out) out.innerHTML = '';
+    return;
+  }
+  if (ce) ce.hidden = true;
+
+  if (!activeOrgId) return;
+
+  var params = new URLSearchParams();
+  if (a) {
+    params.set('from', new Date(a + 'T00:00:00.000Z').toISOString());
+  }
+  if (b) {
+    params.set('to', new Date(b + 'T23:59:59.999Z').toISOString());
+  }
+
+  var selectedProject = fp ? fp.value : '';
+  if (selectedProject) {
+    params.set('project_id', selectedProject);
+  }
+
+  try {
+    var report = await api.get('/organizations/' + activeOrgId + '/reports?' + params.toString());
+    var t = report.totals || { tasks: 0, done: 0, overdue: 0, progress: null, approved_versions: 0, decisions: 0, turnaround_seconds: null };
+    var projs = report.projects || [];
+
+    // Low data warning: show when few tasks or decisions
+    var isLowData = (t.tasks === 0 && t.decisions === 0) || t.tasks < 3;
+    if (lo) lo.hidden = !isLowData;
+
+    var progressText = t.progress != null ? Math.round(t.progress * 100) + '%' : '—';
+    var turnaroundText = formatTurnaround(t.turnaround_seconds);
+    var tasksClosed = t.done;
+    var tasksOpen = Math.max(0, t.tasks - t.done);
+
+    var rowsHtml = projs.length === 0
+      ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No projects match this selection</td></tr>'
+      : projs.map(function(p) {
+          var pProg = p.progress != null ? Math.round(p.progress * 100) + '%' : '—';
+          var pTurn = formatTurnaround(p.turnaround_seconds);
+          var pOpen = Math.max(0, p.tasks - p.done);
+          return '<tr>' +
+            '<td><a class="lnk" href="/project/project?id=' + esc(p.id) + '">' + esc(p.name) + '</a></td>' +
+            '<td>' + esc(pProg) + '</td>' +
+            '<td>' + esc(p.overdue) + '</td>' +
+            '<td>' + esc(pTurn) + '</td>' +
+            '<td>' + esc(p.done) + '</td>' +
+            '<td>' + esc(pOpen) + '</td>' +
+            '</tr>';
+        }).join('');
+
+    var defText = report.definitions || 'How it’s calculated: progress is closed tasks over non-cancelled tasks. Turnaround time runs from review cycle creation to decision. Members only see their own projects.';
+
+    if (out) {
+      out.innerHTML = '<div class="stats">' +
+        '<div><b>' + esc(progressText) + '</b><small>Progress</small></div>' +
+        '<div><b>' + esc(t.decisions) + '</b><small>Waiting on a decision</small></div>' +
+        '<div><b>' + esc(turnaroundText) + '</b><small>Average time to decision</small></div>' +
+        '<div><b>' + esc(tasksClosed) + ' / ' + esc(tasksOpen) + '</b><small>Tasks closed / open</small></div>' +
+        '</div>' +
+        '<div class="tblw">' +
+        '<table class="tbl">' +
+        '<thead><tr><th>Project</th><th>On time</th><th>Overdue</th><th>Avg decision</th><th>Closed</th><th>Open</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+        '</div>' +
+        '<p style="color:var(--muted);font-size:14px;margin-top:16px">' + esc(defText) + '</p>';
+    }
+  } catch (err) {
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) {
+      return;
+    }
+    if (out) {
+      out.innerHTML = '<div class="msg err mg">' + esc(err.message || 'Failed to load report data') + '</div>';
+    }
+  }
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  activeOrgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId || session.principals[0].organization_id;
+  }
+  if (!activeOrgId) {
+    var pRes = await api.get('/me/principals');
+    if (pRes && pRes.items && pRes.items.length) {
+      activeOrgId = pRes.items[0].organization_id || pRes.items[0].organizationId;
+    }
+  }
+
+  // Populate projects select
+  var fp = $('fp');
+  try {
+    var res = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects') : api.get('/organizations/' + activeOrgId + '/projects?limit=100'));
+    projectsList = res.items || [];
+    if (fp) {
+      fp.innerHTML = '<option value="">Whole company</option>' +
+        projectsList.map(function(p) {
+          return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+        }).join('');
+    }
+  } catch (_) {}
+
+  // Check URL query parameters for pre-selected project
+  var urlParams = new URLSearchParams(window.location.search);
+  var qProj = urlParams.get('project_id') || urlParams.get('project') || urlParams.get('id');
+  if (qProj && fp) {
+    fp.value = qProj;
+  }
+
+  // Bind change events
+  ['fp', 'fa', 'fb'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.onchange = loadReport;
+  });
+
+  await loadReport();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

@@ -1,0 +1,579 @@
+generator client {
+  provider = "prisma-client"
+  output = "../../src/generated-product"
+  moduleFormat = "esm"
+}
+datasource db {
+  provider = "postgresql"
+}
+model User {
+  id String @id
+  name String
+  email String @unique
+  emailVerified Boolean @default(false)
+  image String?
+  active Boolean @default(true)
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  sessions Session[]
+  accounts Account[]
+  @@map("identity_user")
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token String @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  lastActivityAt DateTime @default(now()) @db.Timestamptz(3)
+  ipAddress String?
+  userAgent String?
+  @@index([userId])
+  @@map("identity_session")
+}
+model Account {
+  id String @id
+  accountId String
+  providerId String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken String?
+  refreshToken String?
+  idToken String?
+  accessTokenExpiresAt DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope String?
+  password String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@unique([userId, providerId])
+  @@map("identity_account")
+}
+model Verification {
+  id String @id
+  identifier String @unique
+  value String
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@map("identity_verification")
+}
+model EmailProof {
+  id String @id
+  userId String
+  expiresAt DateTime @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  @@map("identity_email_proof")
+}
+model IdentityMail {
+  id String @id
+  userId String
+  kind String
+  envelope String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@map("identity_mail")
+}
+model Organization {
+  id String @id @db.Uuid
+  name String
+  description String @default("")
+  timezone String @default("UTC")
+  status String @default("ACTIVE")
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  memberships Membership[]
+  @@map("organization")
+}
+model Membership {
+  id String @id @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  organization Organization @relation(fields: [organizationId], references: [id])
+  userId String @map("user_id")
+  role String
+  status String @default("ACTIVE")
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([organizationId, id])
+  @@unique([organizationId, userId])
+  @@map("membership")
+}
+
+// Phase 3 scalar mappings; reviewed SQL owns composite FKs, triggers and RLS.
+model Client {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+name String
+description String @default("")
+status String @default("ACTIVE")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,id])
+ @@map("client")
+}
+model ClientContact {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+clientId String @map("client_id") @db.Uuid
+name String
+email String
+userId String? @map("user_id")
+status String @default("ACTIVE")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,id])
+ @@unique([organizationId,id,clientId])
+ @@unique([organizationId,clientId,email])
+ @@unique([organizationId,clientId,userId])
+ @@map("client_contact")
+}
+model Project {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+clientId String @map("client_id") @db.Uuid
+name String
+description String @default("")
+status String @default("PLANNED")
+portalEnabled Boolean @default(false) @map("portal_enabled")
+dueAt DateTime? @map("due_at") @db.Timestamptz(6)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,id])
+ @@unique([organizationId,id,clientId])
+ @@map("project")
+}
+model ProjectMembership {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+membershipId String @map("membership_id") @db.Uuid
+role String
+status String @default("ACTIVE")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,projectId,id])
+ @@unique([organizationId,id])
+ @@unique([organizationId,projectId,membershipId])
+ @@map("project_membership")
+}
+model ClientProjectAccess {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+clientId String @map("client_id") @db.Uuid
+contactId String @map("contact_id") @db.Uuid
+role String
+status String @default("ACTIVE")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,id])
+ @@unique([organizationId,projectId,contactId])
+ @@map("client_project_access")
+}
+model Milestone {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+title String
+status String @default("OPEN")
+dueAt DateTime? @map("due_at") @db.Timestamptz(6)
+position Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,projectId,id])
+ @@unique([organizationId,id])
+ @@map("milestone")
+}
+model Task {
+ sourceFeedbackThreadId String? @map("source_feedback_thread_id") @db.Uuid
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+milestoneId String? @map("milestone_id") @db.Uuid
+assigneeId String? @map("assignee_id") @db.Uuid
+title String
+description String @default("")
+status String @default("TODO")
+priority String @default("NORMAL")
+dueAt DateTime? @map("due_at") @db.Timestamptz(6)
+position Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,projectId,id])
+ @@unique([organizationId,id])
+ @@map("task")
+}
+model TaskChecklistItem {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+taskId String @map("task_id") @db.Uuid
+label String
+position Int @default(0)
+completed Boolean @default(false)
+completedBy String? @map("completed_by")
+completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ revision Int @default(1)
+ @@unique([organizationId,projectId,taskId,id])
+ @@map("task_checklist")
+}
+model TaskComment {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+taskId String @map("task_id") @db.Uuid
+threadId String? @map("thread_id") @db.Uuid
+authorId String @map("author_id")
+body String
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ @@unique([organizationId,projectId,taskId,id])
+ @@map("task_comment")
+}
+model TaskHistory {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+projectId String @map("project_id") @db.Uuid
+taskId String @map("task_id") @db.Uuid
+actorId String @map("actor_id")
+kind String
+fields Json @default("{}")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ @@map("task_history")
+}
+
+// Phase 4 scalar mappings. Reviewed composite FKs, RLS and triggers are SQL-owned.
+model ProjectFolder {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ name String
+ position Int @default(dbgenerated("0"))
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("project_folder")
+}
+model UploadIntent {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ initiatorId String @map("initiator_id")
+ purpose String
+ folderId String? @map("folder_id") @db.Uuid
+ name String
+ stagingKey String @map("staging_key")
+ expectedSize Int @map("expected_size")
+ expectedDigest String @map("expected_digest")
+ mime String
+ expiresAt DateTime @default(dbgenerated("(now() + '00:05:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+ status String @default(dbgenerated("'ISSUED'::text"))
+ errorCode String? @map("error_code")
+ attempts Int @default(dbgenerated("0"))
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("project_upload")
+}
+model FileAsset {
+ id String @id @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ uploadId String @map("upload_id") @db.Uuid
+ canonicalKey String @map("canonical_key")
+ storageVersion String @map("storage_version")
+ digest String
+ byteSize Int @map("byte_size")
+ mime String
+ width Int?
+ height Int?
+ pages Int?
+ toolVersion String @map("tool_version")
+ readyAt DateTime @default(dbgenerated("now()")) @map("ready_at") @db.Timestamptz(6)
+ @@map("file_asset")
+}
+model FileAccess {
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ assetId String @id @map("asset_id") @db.Uuid
+ status String @default(dbgenerated("'AVAILABLE'::text"))
+ revision Int @default(dbgenerated("1"))
+ @@map("file_access")
+}
+model FilePreview {
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ assetId String @map("asset_id") @db.Uuid
+ page Int
+ objectKey String @map("object_key")
+ storageVersion String @map("storage_version")
+ digest String
+ width Int
+ height Int
+ @@id([assetId,page])
+ @@map("file_preview")
+}
+model ProjectFile {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ assetId String @map("asset_id") @db.Uuid
+ folderId String? @map("folder_id") @db.Uuid
+ title String
+ status String @default(dbgenerated("'ACTIVE'::text"))
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("project_file")
+}
+model Deliverable {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ taskId String? @map("task_id") @db.Uuid
+ title String
+ description String @default(dbgenerated("''::text"))
+ status String @default(dbgenerated("'ACTIVE'::text"))
+ latestVersionId String? @map("latest_version_id") @db.Uuid
+ nextVersion Int @default(dbgenerated("1")) @map("next_version")
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("deliverable")
+}
+model DeliverableVersion {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ deliverableId String @map("deliverable_id") @db.Uuid
+ versionNumber Int @map("version_number")
+ assetId String @map("asset_id") @db.Uuid
+ digest String
+ byteSize Int @map("byte_size")
+ mime String
+ creatorId String @map("creator_id")
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ @@map("deliverable_version")
+}
+model FileJob {
+ id String @id @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ lease String? @db.Uuid
+ leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+ startedLease String? @map("started_lease") @db.Uuid
+ attempts Int @default(dbgenerated("0"))
+ availableAt DateTime @default(dbgenerated("now()")) @map("available_at") @db.Timestamptz(6)
+ completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+ @@map("file_job")
+}
+model LogoUpload {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ initiatorId String @map("initiator_id")
+ name String
+ stagingKey String @map("staging_key")
+ expectedSize Int @map("expected_size")
+ expectedDigest String @map("expected_digest")
+ mime String
+ expiresAt DateTime @default(dbgenerated("(now() + '00:05:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+ status String @default(dbgenerated("'ISSUED'::text"))
+ errorCode String? @map("error_code")
+ attempts Int @default(dbgenerated("0"))
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("logo_upload")
+}
+model LogoAsset {
+ id String @id @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ uploadId String @map("upload_id") @db.Uuid
+ canonicalKey String @map("canonical_key")
+ storageVersion String @map("storage_version")
+ digest String
+ byteSize Int @map("byte_size")
+ mime String
+ previewKey String @map("preview_key")
+ previewVersion String @map("preview_version")
+ previewDigest String @map("preview_digest")
+ width Int
+ height Int
+ toolVersion String @map("tool_version")
+ readyAt DateTime @default(dbgenerated("now()")) @map("ready_at") @db.Timestamptz(6)
+ @@map("logo_asset")
+}
+model LogoAccess {
+ organizationId String @map("organization_id") @db.Uuid
+ assetId String @id @map("asset_id") @db.Uuid
+ status String @default(dbgenerated("'AVAILABLE'::text"))
+ revision Int @default(dbgenerated("1"))
+ @@map("logo_access")
+}
+model LogoReference {
+ organizationId String @id @map("organization_id") @db.Uuid
+ assetId String? @map("asset_id") @db.Uuid
+ revision Int @default(dbgenerated("1"))
+ @@map("logo_reference")
+}
+model ProfileUpload {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ userId String @map("user_id")
+ initiatorId String @map("initiator_id")
+ name String
+ stagingKey String @map("staging_key")
+ expectedSize Int @map("expected_size")
+ expectedDigest String @map("expected_digest")
+ mime String
+ expiresAt DateTime @default(dbgenerated("(now() + '00:05:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+ status String @default(dbgenerated("'ISSUED'::text"))
+ errorCode String? @map("error_code")
+ attempts Int @default(dbgenerated("0"))
+ revision Int @default(dbgenerated("1"))
+ createdAt DateTime @default(dbgenerated("now()")) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(dbgenerated("now()")) @map("updated_at") @db.Timestamptz(6)
+ @@map("profile_upload")
+}
+model ProfileAsset {
+ id String @id @db.Uuid
+ userId String @map("user_id")
+ uploadId String @map("upload_id") @db.Uuid
+ canonicalKey String @map("canonical_key")
+ storageVersion String @map("storage_version")
+ digest String
+ byteSize Int @map("byte_size")
+ mime String
+ previewKey String @map("preview_key")
+ previewVersion String @map("preview_version")
+ previewDigest String @map("preview_digest")
+ width Int
+ height Int
+ toolVersion String @map("tool_version")
+ readyAt DateTime @default(dbgenerated("now()")) @map("ready_at") @db.Timestamptz(6)
+ @@map("profile_asset")
+}
+model ProfileAccess {
+ userId String @map("user_id")
+ assetId String @id @map("asset_id") @db.Uuid
+ status String @default(dbgenerated("'AVAILABLE'::text"))
+ revision Int @default(dbgenerated("1"))
+ @@map("profile_access")
+}
+model ProfileReference {
+ userId String @id @map("user_id")
+ assetId String? @map("asset_id") @db.Uuid
+ revision Int @default(dbgenerated("1"))
+ @@map("profile_reference")
+}
+model MediaJob {
+ id String @id @db.Uuid
+ scope String
+ organizationId String? @map("organization_id") @db.Uuid
+ userId String? @map("user_id")
+ lease String? @db.Uuid
+ leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+ startedLease String? @map("started_lease") @db.Uuid
+ attempts Int @default(dbgenerated("0"))
+ availableAt DateTime @default(dbgenerated("now()")) @map("available_at") @db.Timestamptz(6)
+ completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+ @@map("media_job")
+}
+model StagingCleanup {
+ scope String
+ uploadId String @map("upload_id") @db.Uuid
+ organizationId String? @map("organization_id") @db.Uuid
+ userId String? @map("user_id")
+ stagingKey String @map("staging_key")
+ deletedAt DateTime @default(dbgenerated("now()")) @map("deleted_at") @db.Timestamptz(6)
+ @@id([scope,uploadId])
+ @@map("staging_cleanup")
+}
+model FileProcessingStep {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ projectJob String? @map("project_job") @db.Uuid
+ mediaJob String? @map("media_job") @db.Uuid
+ organizationId String? @map("organization_id") @db.Uuid
+ userId String? @map("user_id")
+ lease String @db.Uuid
+ step String
+ outcome String
+ toolIdentity String @map("tool_identity")
+ recordedAt DateTime @default(dbgenerated("now()")) @map("recorded_at") @db.Timestamptz(6)
+ @@map("file_processing_step")
+}
+
+// Phase 7 scalar mappings. Reviewed SQL owns composite ancestry, guards and forced RLS.
+model Discussion {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ authorId String @map("author_id")
+ title String
+ body String
+ status String @default("ACTIVE")
+ revision Int @default(1)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ @@unique([organizationId,projectId,id])
+ @@map("discussion")
+}
+model DiscussionReply {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ discussionId String @map("discussion_id") @db.Uuid
+ authorId String @map("author_id")
+ body String
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ @@map("discussion_reply")
+}
+model Document {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ authorId String @map("author_id")
+ title String
+ content Json
+ status String @default("ACTIVE")
+ revision Int @default(1)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ @@unique([organizationId,projectId,id])
+ @@map("document")
+}
+model ClientUpdate {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ authorId String @map("author_id")
+ body String
+ status String @default("PUBLISHED")
+ revision Int @default(1)
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+ withdrawnAt DateTime? @map("withdrawn_at") @db.Timestamptz(6)
+ @@unique([organizationId,projectId,id])
+ @@map("client_update")
+}
+model ProjectActivity {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ organizationId String @map("organization_id") @db.Uuid
+ projectId String @map("project_id") @db.Uuid
+ eventId String @map("event_id") @db.Uuid
+ action String
+ summary String
+ actor String
+ createdAt DateTime @map("created_at") @db.Timestamptz(6)
+ @@unique([organizationId,projectId,eventId])
+ @@map("project_activity")
+}

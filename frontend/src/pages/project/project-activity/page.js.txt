@@ -1,0 +1,225 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+
+// State
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var activityItems = [];
+var cursorStack = [];
+var currentCursor = null;
+var nextCursor = null;
+var totalCount = 0;
+var limit = 25;
+var hasAppliedFilters = false;
+
+function esc(s) {
+  return H.esc ? H.esc(s) : String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function formatFriendlyAction(action, summary) {
+  if (summary && summary !== 'Project lifecycle activity') return summary;
+  if (!action) return 'Project activity';
+  switch (action) {
+    case 'core.changed': return 'Project updated';
+    case 'task.created': return 'Created task';
+    case 'task.updated': return 'Updated task';
+    case 'comment.created': return 'Added comment';
+    case 'discussion.created': return 'Started discussion';
+    case 'discussion.reply': return 'Replied to discussion';
+    case 'discussion.archived': return 'Archived discussion';
+    case 'document.created': return 'Created document';
+    case 'document.saved': return 'Saved document';
+    case 'document.archived': return 'Archived document';
+    case 'review.created': return 'Created review cycle';
+    case 'review.closed': return 'Closed review cycle';
+    case 'deliverable.created': return 'Created deliverable';
+    case 'deliverable.version': return 'Uploaded version';
+    default: return action;
+  }
+}
+
+function formatFriendlyTime(isoStr) {
+  if (!isoStr) return '';
+  try {
+    var d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    var year = d.getFullYear();
+    var month = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    var hours = String(d.getHours()).padStart(2, '0');
+    var mins = String(d.getMinutes()).padStart(2, '0');
+    return year + '-' + month + '-' + day + ' ' + hours + ':' + mins;
+  } catch (_) {
+    return isoStr;
+  }
+}
+
+function renderTable() {
+  var tb = $('tb');
+  var em = $('em');
+  var et = $('et');
+  var eh = $('eh');
+  var pg = $('pg');
+  var pv = $('pv');
+  var nx = $('nx');
+
+  if (em) {
+    if (activityItems.length === 0) {
+      em.hidden = false;
+      em.style.display = '';
+      if (et) et.textContent = (hasAppliedFilters || activityItems.length > 0) ? 'No events match' : 'No events yet';
+      if (eh) eh.textContent = (hasAppliedFilters || activityItems.length > 0) ? ' Clear a filter.' : ' Changes will show up here.';
+    } else {
+      em.hidden = true;
+      em.style.display = 'none';
+    }
+  }
+
+  if (tb) {
+    var projName = currentProject ? currentProject.name : 'Project';
+    tb.innerHTML = activityItems.map(function(item) {
+      var timeStr = formatFriendlyTime(item.created_at);
+      var whoStr = item.actor || 'Team member';
+      var actionStr = formatFriendlyAction(item.action, item.summary);
+      return '<tr>' +
+        '<td>' + esc(timeStr) + '</td>' +
+        '<td>' + esc(whoStr) + '</td>' +
+        '<td>' + esc(actionStr) + '</td>' +
+        '<td>' + esc(projName) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Pagination controls
+  var currentPage = cursorStack.length + 1;
+  var totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  if (pg) pg.textContent = 'Page ' + currentPage + ' of ' + totalPages;
+  if (pv) pv.disabled = cursorStack.length === 0;
+  if (nx) nx.disabled = !nextCursor;
+}
+
+async function loadActivity(cursorToLoad) {
+  try {
+    var params = new URLSearchParams();
+    params.set('limit', String(limit));
+    if (cursorToLoad) params.set('cursor', cursorToLoad);
+
+    var fa = $('fa');
+    var fb = $('fb');
+    hasAppliedFilters = Boolean((fa && fa.value) || (fb && fb.value));
+
+    if (fa && fa.value) {
+      var dFrom = new Date(fa.value + 'T00:00:00.000Z');
+      if (!isNaN(dFrom.getTime())) params.set('from', dFrom.toISOString());
+    }
+    if (fb && fb.value) {
+      var dTo = new Date(fb.value + 'T23:59:59.999Z');
+      if (!isNaN(dTo.getTime())) params.set('to', dTo.toISOString());
+    }
+
+    var res = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/activity?' + params.toString());
+    activityItems = res.items || [];
+    totalCount = typeof res.total === 'number' ? res.total : activityItems.length;
+    nextCursor = res.nextCursor || null;
+    currentCursor = cursorToLoad || null;
+
+    renderTable();
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function loadProject() {
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+
+    var h1 = document.querySelector('.top h1');
+    if (h1) h1.textContent = currentProject.name;
+
+    var topP = document.querySelector('.top p');
+    if (topP) {
+      var uiStatus = H.toUIStatus ? H.toUIStatus(currentProject.status) : currentProject.status;
+      var clientName = 'Client';
+      if (currentProject.client_id) {
+        try {
+          var client = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+          if (client && client.name) clientName = client.name;
+        } catch (_) {}
+      }
+      topP.innerHTML = esc(clientName) + ' · <span class="tag">' + esc(uiStatus) + '</span>';
+    }
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+    throw err;
+  }
+}
+
+async function initPage() {
+  if (H.loadHeader) H.loadHeader();
+
+  var principal = auth.getActivePrincipal ? auth.getActivePrincipal() : null;
+  activeOrgId = principal ? (principal.organizationId || principal.organization_id) : (auth.getActiveOrgId ? auth.getActiveOrgId() : null);
+  activeProjectId = window.__DW_PROJECT_ID__ || new URLSearchParams(window.location.search).get('id');
+
+  if (!activeProjectId || !activeOrgId) {
+    if (H.renderNotAvailableState) H.renderNotAvailableState('app', 'This project is not available.');
+    return;
+  }
+
+  // Sidebar toggle
+  var togBtn = $('tog');
+  if (togBtn) {
+    togBtn.onclick = function() {
+      var app = $('app');
+      if (app) app.classList.toggle('min');
+    };
+  }
+
+  // Filter change listeners
+  var fa = $('fa');
+  var fb = $('fb');
+
+  var onDateFilterChange = function() {
+    cursorStack = [];
+    currentCursor = null;
+    loadActivity(null);
+  };
+
+  if (fa) fa.onchange = onDateFilterChange;
+  if (fb) fb.onchange = onDateFilterChange;
+
+  // Pagination buttons
+  var pv = $('pv');
+  var nx = $('nx');
+
+  if (pv) {
+    pv.onclick = function() {
+      if (cursorStack.length === 0) return;
+      var prevCursor = cursorStack.pop();
+      loadActivity(prevCursor);
+    };
+  }
+
+  if (nx) {
+    nx.onclick = function() {
+      if (!nextCursor) return;
+      cursorStack.push(currentCursor);
+      loadActivity(nextCursor);
+    };
+  }
+
+  try {
+    await loadProject();
+    await loadActivity(null);
+  } catch (err) {
+    if (H.handlePageAccessError) H.handlePageAccessError(err, $('app'));
+  }
+}
+
+initPage();

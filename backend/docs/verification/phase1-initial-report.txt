@@ -1,0 +1,190 @@
+# Phase 1 execution and review report
+
+Date: 2026-10-15. Scope: repository foundation and isolated compatibility only. **Overall exit status: PARTIAL. Not every Phase 1 criterion is proven. Phase 2 is not authorized and has not begun.** The application foundation and focused checks pass; Docker-backed infrastructure execution and parts of V01 remain open.
+
+## 1. Repository structure
+
+Local Git initialized on branch main with no commits, remote, or push. The prior eight baseline documents are retained. Workspace boundaries:
+
+```text
+apps/web          Next.js status page and isolated experiment interface
+apps/api          Nest Express health, versioned routing, gated V01 experiment
+apps/worker       Independent Nest application context; no jobs registered
+packages/server   Validated shared server configuration
+packages/database Prisma PostgreSQL adapter and disposable v01_* schema only
+packages/contracts Browser-safe foundation types and health OpenAPI snapshot
+packages/config   Shared strict TypeScript configuration
+infra             Compose, pinned Dockerfile, private topology instructions
+scripts           Setup/start/stop, configuration, boundary and contract checks
+tests             Focused unit, real integration, real browser tests
+docs              Retained baseline, version record, this execution report
+```
+
+The import checker inspects manifests and TypeScript AST imports, reexports, literal require/dynamic imports and relative escapes. Web/contracts cannot import server/database internals. This is a foundation guard, not a complete security sandbox or future domain-module enforcement.
+
+## 2. Versions and rationale
+
+Exact pins, peer constraints, primary sources, image digests and binary provenance are in [DEPENDENCY_VERSIONS.md](DEPENDENCY_VERSIONS.md). Principal combination: Node 24.14.0, pnpm 10.18.1, TypeScript 5.9.3, Next 16.4.1, React 19.3.1, Nest 12.1.3, Prisma 7.10.0, Better Auth 1.7.10 and its community Nest adapter 2.8.0. Strict peer and frozen lockfile installation succeeded.
+
+Stable application packages were chosen over incompatible TypeScript 7 / Prisma 8 RC registry tags. Two tooling/fixture exceptions are explicit: the optional Windows PostgreSQL packaging is 18.4.0-beta.17 around a checked stable 18.4 binary, and official Playwright CLI 0.1.22 brings its own alpha Playwright dependency. Neither is a production application dependency. The stable E2E runner is Playwright 1.64.1.
+
+## 3. Working services and URLs
+
+| Service                     | Actual execution                                                                    | Address                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| HTTPS reverse proxy         | Running; HTTP and WebSocket requests exercised                                      | https://localhost:8443                                               |
+| Next.js                     | Production build and start; status/API interaction and experiment browser test pass | https://localhost:8443 and /experiment                               |
+| NestJS API                  | Live/ready, real JSON parsing, experimental auth/session routes                     | /api/v1/health/live, /api/v1/health/ready; library-owned /api/auth/* |
+| NestJS worker               | Independent process; structured startup evidence, zero jobs                         | No public port                                                       |
+| PostgreSQL 18.4             | Real disposable Prisma persistence and revocation                                   | 127.0.0.1:55432, devworkspace_v01                                    |
+| Redis / SeaweedFS / Mailpit | NOT TESTED: Docker unavailable                                                      | Private Compose network configuration only                           |
+
+Host web/API bind 127.0.0.1:3000/3001. Browser traffic uses HTTPS 8443. All working data is disposable. The recovery fixture inbox is an ignored local file, not SMTP delivery. Self-signed TLS is not added to the OS trust store; the isolated browser context accepts it explicitly. Node checks trust only the local certificate.
+
+## 4. Startup and readiness evidence
+
+The actual startup command `pnpm dev` emitted `foundation.stack.ready`, origin https://localhost:8443, workerEvidence true, productionFeatures false, and API readiness:
+
+```json
+{
+  "status": "ready",
+  "mode": "isolated-auth-experiment",
+  "postgres": "connected",
+  "redis": "not-checked",
+  "storage": "not-checked"
+}
+```
+
+Independent logs contain `api.bootstrap.ready`, Next Ready, `proxy.bootstrap.ready`, and `worker.bootstrap.ready` with phase 1, bootstrap-only, jobsRegistered 0 and infrastructureChecks not-performed. The worker validates a typed BullMQ/ioredis connection configuration but never connects or claims queue readiness.
+
+API readiness issues a real PostgreSQL SELECT 1 in experiment mode and returns 503 on database failure. Disabled-experiment foundation mode needs no database and says so. No test equates process readiness with Redis/storage or product readiness.
+
+Application shutdown/restart was exercised with `pnpm dev:stop` (the same ownership-checked helper was invoked directly before the alias existed). It stops only recorded project processes; PostgreSQL has a separate ownership-checked stop command. Data is retained. See [run instructions](../README.md) and [infrastructure](../infra/README.md).
+
+## 5. Actual commands and outcomes
+
+Commands ran in D:/Devworkspace. Long-running startup success is a readiness event, not a process exit code.
+
+| Command                                                                 | Final observed result                                                                                       |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| git init --initial-branch=main                                          | Exit 0; no commit                                                                                           |
+| pnpm install                                                            | Exit 0; strict peer dependency resolution                                                                   |
+| pnpm install --frozen-lockfile                                          | Exit 0; up-to-date lockfile; optional msgpackr-extract native build intentionally skipped                   |
+| pnpm setup:local                                                        | Exit 0; project secrets/TLS generated, no global trust change                                               |
+| pnpm experiment:prepare                                                 | Exit 0 after Windows process handling correction; actual PostgreSQL and v01_* schema                        |
+| pnpm db:generate                                                        | Exit 0; Prisma 7.10.0 client generated under ignored path                                                   |
+| pnpm build                                                              | Exit 0; all shared packages, API, worker and real Next production build                                     |
+| pnpm openapi:generate / pnpm openapi:check                              | Exit 0; foundation health snapshot generated/checked                                                        |
+| pnpm check                                                              | Exit 0; runtime, boundaries, documents, static infra, OpenAPI, env, lint, typecheck, unit tests, formatting |
+| pnpm test                                                               | Exit 0; 3 focused boundary/config tests, 3 pass                                                             |
+| pnpm dev                                                                | Actual readiness event; API/web/worker/proxy booted                                                         |
+| pnpm test:integration                                                   | Exit 0; 8 real HTTPS/PostgreSQL/Socket.IO tests, 8 pass                                                     |
+| pnpm exec playwright install chromium                                   | Exit 0; project-local browser path                                                                          |
+| pnpm test:e2e                                                           | Exit 0; 1 real Chromium test, 1 pass                                                                        |
+| pnpm exec playwright-cli -s=phase1-foundation open/click/snapshot/close | Exit 0; isolated CLI status page reports API ok — phase 1; owned browser closed                             |
+| pnpm check:infra                                                        | Exit 0; YAML/network/port/image checks only                                                                 |
+| pnpm infra:config                                                       | Exit 1: docker command unavailable; Docker validation NOT PASSED                                            |
+| git diff --check / git status inspection                                | Exit 0 whitespace check; reviewed local additions, ignored secrets and no commits                           |
+
+The pinned `pnpm check` aggregate includes the individual named checks above. Unit tests cover rejected experiment configuration, browser-safe boundaries and import bypass forms. Integration tests use real HTTP and PostgreSQL; E2E uses no mocked routes or fabricated backend responses.
+
+CLI inspection found one harmless favicon.ico 404; the API interaction succeeded and no application exception was observed. Raw local logs and browser snapshots remain ignored under .local. Auth fixtures may contain sensitive synthetic proofs and must not be published. The OpenAPI check is a deterministic health-contract snapshot check, not generated production DTO/client compatibility or a full API schema test.
+
+## 6. Authentication V01 matrix
+
+PASS means execution evidence for the stated narrow behavior, not product acceptance T01/T02.
+
+| Requirement                                                                | Status     | Evidence and limit                                                                                                                                             |
+| -------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nest Express + Better Auth adapter                                         | PASS       | Actual Nest 12 / Express 5 process; library-owned /api/auth mounted alongside /api/v1                                                                          |
+| Prisma 7 PostgreSQL integration                                            | PASS       | Real users/accounts/sessions/proofs in four isolated v01_* tables; no SQLite/mock database                                                                     |
+| Auth and ordinary JSON body parsing                                        | PASS       | Actual sign-up/sign-in/reset and nested echo POST; Nest bodyParser false with adapter-managed ordinary JSON parser                                             |
+| Persistent opaque cookie session                                           | PASS       | Database session survives independent HTTP/SSR requests; cache disabled                                                                                        |
+| Secure, HttpOnly, host-only, SameSite Lax, Path=/ cookie                   | PASS       | Actual Set-Cookie assertions and browser cookie inspection; exact __Host- name and absent Domain                                                               |
+| Login/logout and database revocation                                       | PASS       | Browser login/logout, server deletion and old-cookie replay rejection                                                                                          |
+| Expired server session rejection                                           | PASS       | Database expiry moved into past; old cookie rejected                                                                                                           |
+| Exact Origin / cookie mutation CSRF gate                                   | PASS       | Valid requests succeed; wrong and missing Origin rejected with 403; explicit integration middleware required                                                   |
+| Next.js credential forwarding                                              | PASS       | Server-rendered experiment forwards only request cookie to fixed internal API; no-store; browser reload proves identity/logout                                 |
+| Socket.IO session/Origin validation                                        | PASS       | Real HTTPS WebSocket; missing cookie/wrong Origin denied; database session rechecked on experiment event after revocation                                      |
+| All active socket authorization/revocation paths                           | PARTIAL    | Event-level check proven; no proactive cross-process revocation broadcast, product rooms, grant changes or tenant policies implemented                         |
+| Eight-hour absolute session lifetime                                       | PASS       | Stored expiry interval asserted; disabled refresh prevents configured sliding extension                                                                        |
+| Thirty-minute idle plus eight-hour absolute lifetime                       | PARTIAL    | Idle timestamp/gate not implemented or tested. Current candidate configuration establishes only the absolute ceiling; production selection remains conditional |
+| Recent authentication for sensitive operations                             | NOT TESTED | freshAge 600 configured, but no sensitive production endpoint or actual old-auth challenge was exercised                                                       |
+| Recovery proof interval, one-time replay, password change                  | PASS       | Real 30-minute proof record, reset succeeds once, sequential replay fails, old password fails and new password works                                           |
+| Password reset revokes all existing sessions                               | PASS       | Two real sessions invalidated after reset                                                                                                                      |
+| Recovery expired proof / parallel consume race                             | NOT TESTED | Future expiry timestamp and sequential replay tested, not expired-token submission or simultaneous consumers                                                   |
+| Verification email proof and verified-only policy                          | PARTIAL    | Callback captures actual signup proof with configured 24-hour interval; proof consume/expiry/race and verified-only login policy not exercised                 |
+| Mail delivery/outbox/idempotency and recovery anti-enumeration/rate limits | NOT TESTED | Fixture inbox only; no SMTP, durable outbox, distributed limiter or enumeration claims                                                                         |
+| Production identity, principal/tenant/RLS, invitations                     | NOT TESTED | Explicitly outside Phase 1                                                                                                                                     |
+
+No unresolved executed authentication FAIL remains after corrections. V01 as a whole remains **PARTIAL**. No architecture switch occurred. Before selecting Better Auth for Phase 2, prove idle/absolute enforcement and recent-auth/recovery race requirements. A narrow server-side session policy around the candidate may be feasible, but is an unverified design option. If a critical requirement proves incompatible, review a justified alternative/decision change before adopting it.
+
+## 7. Infrastructure and security boundaries
+
+Compose includes PostgreSQL, Redis, SeaweedFS, Mailpit, proxy and three application processes. Images are version/digest pinned. A private internal network and no nonproxy published ports are statically checked; only 127.0.0.1:8443 is published. Compose runtime, firewall reachability and service resource use are not proven because Docker is absent. Dockerfile/Compose must be executed before this infrastructure criterion is closed.
+
+The proxy routes REST/auth and Socket.IO to the API, other web paths to Next, and only shape-checked signed staging PUT requests toward private S3. It denies canonical/admin reads and strips cookies on staging. Wrong Origin/method and forbidden reads have real rejection tests. Successful S3 signature preservation, conditional writes, checksum/cap enforcement and canonical immutability are **NOT TESTED**. They remain V03/Phase 4.
+
+No bucket bootstrap, scoped upload capability or production storage permission exists. Ignored local S3 admin credentials initialize a disposable candidate only. The configured 25 MiB proxy header cap does not prove end-to-end file capacity. 100-page PDF and 2 MiB avatar defaults are also unverified.
+
+Experiment registration/login is intentionally exposed only in the gated local experiment; it has no organization plugin, roles, product schema, migration, RLS, production audit/outbox, or production security claim. Environment validation refuses enabling it with NODE_ENV=production.
+
+## 8. Problems and corrections
+
+| Observed problem                                                       | Correction / remaining effect                                                                                                                              |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TS declaration inference exposed generated Prisma type paths (TS2742)  | Explicit API factory return type; builds/typecheck pass                                                                                                    |
+| Next webpack could not resolve .js suffixes for TSX sibling components | Use supported extensionless Next component imports; full Next build passes                                                                                 |
+| Windows pg_ctl inherited pipes kept preparation waiting                | Start only the owned cluster with detached output redirection/timeout; rerun succeeds; no unrelated process stopped                                        |
+| Re-extracting running Windows PostgreSQL binaries encountered locks    | Verify and reuse matching existing binary; do not overwrite active files                                                                                   |
+| Wrong/missing Origin needed an explicit API boundary                   | Add exact-Origin rejection for unsafe auth requests; negative and valid requests now pass                                                                  |
+| Better Auth prepended __Secure- to explicit __Host- cookie name        | Disable automatic prefix construction, keep all default cookies Secure, explicitly set exact __Host- session attributes; real HTTP/browser assertions pass |
+| OpenAPI generator and formatter disagreed on snapshot layout           | Generate using pinned Prettier JSON formatting; drift and format checks both pass                                                                          |
+| Docker unavailable                                                     | No system installation; configure Compose honestly, use explicit project-local PostgreSQL fixture for real V01, leave remaining runtime checks open        |
+| Slow official archive download                                         | Stop own download only; verify smaller fixture artifact and binary version; disclose third-party prerelease packaging                                      |
+| http-proxy Node deprecation / missing favicon                          | Nonblocking local warnings; production proxy choice still requires review                                                                                  |
+
+Initial full build and initial integration (7/8) failed on the issues above; corrected reruns pass. Initial OpenAPI drift check failed before canonical formatting was corrected. Dependency metadata/source command lookup failures were resolved through the installed manifests/official sources; they were not counted as product test failures.
+
+The feedback-to-task discrepancy was reconciled in all detailed documents: same actor/scope/key/payload replays after authorization; reused key with different payload is 409; different key on same source is 409 with an existing-task reference only when currently visible; clients never receive it. Permanent uniqueness/concurrency remain planned Phase 5 rules, not implemented endpoints.
+
+## 9. Open risks and decisions
+
+- Docker configuration/build/startup, Redis/BullMQ execution, Mailpit SMTP and SeaweedFS runtime are unverified. No system-wide installation was attempted.
+- V01 idle expiry, recent-auth challenge, verified-email policy and proof races remain open; Better Auth production adoption is provisional.
+- V02 tenant RLS/pool/runtime-role verification waits for authorized Phase 2. V03–V08 remain future gates; foundation evidence does not close them.
+- Production contract generation, migrations, domain authorization, audit/outbox, job recovery and operational restore are unimplemented by scope.
+- The optional binary fixture has third-party prerelease packaging; replace with approved reproducible infrastructure before production or treating it as infrastructure acceptance.
+- Existing baseline scope remains 36 templates, 29/7; no settled product decision was reopened.
+
+## 10. Changed files
+
+All source additions are uncommitted because the original directory had no Git repository. Intent-to-add entries make the whole foundation reviewable as a diff without creating a commit. Existing documents were updated for Phase 1 authority/status and the requested duplicate contract; README was replaced with actual setup/status instructions.
+
+The complete nonignored reviewable file inventory is recorded in [phase1-files.txt](verification/phase1-files.txt). It includes root manifests/configuration/lockfile; all three apps and four packages; infra; setup/start/stop/check scripts; three test suites; eight retained baseline documents and two new evidence documents. Generated clients, build outputs, browsers, secrets, certificates, proof inboxes, databases and logs are ignored.
+
+## 11. Phase 1 exit assessment
+
+| Original exit criterion                                             | Status                                                                        |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Web/API/worker boot, lint/typecheck/build, meaningful checks        | PASS                                                                          |
+| Enforced dependency boundaries                                      | PASS                                                                          |
+| Reproducible V01 report sufficient to select production auth        | PARTIAL: basic compatibility passes; critical lifecycle gaps remain           |
+| Free/private local infrastructure and reproducible startup/shutdown | PARTIAL: host experiment works; Compose/Redis/storage/SMTP runtime unverified |
+| Traceability and actual evidence recorded; stop at gate             | PASS                                                                          |
+
+**Every exit criterion passed: NO.** This is a concrete reviewable Phase 1 delivery with explicit unresolved gates, not approval to proceed. No production identity/domain features, professional design, commits, pushes, deployment, paid resources, global configuration or trusted root changes were made.
+
+## 12. Recommended exact Phase 2 scope
+
+Before Phase 2 approval: resolve the open Phase 1 infrastructure execution and V01 selection gaps above. Docker installation is a separate system change and was not authorized by this phase; verification can use an already provisioned approved Docker environment. If a critical auth gap fails, document the failed experiment and reviewed alternative first.
+
+After explicit authorization, implement only the existing [Phase 2 identity, tenancy and security scope](IMPLEMENTATION_PLAN.md#phase-2--identity-tenancy-and-security-foundation):
+
+1. Production registration, verification, login/logout, idle/absolute/recent-auth sessions, recovery, replay/race protection, origin/CSRF and self-scoped account text/password/session management.
+2. Organization onboarding, name/description/timezone, first Owner transaction, internal invitations, roles/ownership transfer and selected principal/Access. Client invitations extend only with real client/project models in Phase 3.
+3. Reviewed production migrations, composite integrity, nonowner runtime role and transaction-local RLS; V02 pool-reuse/raw/nested-query and cross-tenant denial tests before domain CRUD.
+4. Atomic audit/outbox/idempotency, including a narrow global identity-event lane; real local SMTP retry/delivery and initial T22/T23 infrastructure.
+5. Thin real interfaces for P01–P07 (internal P06), P13, P29 text/settings and P31 text/password/sessions; actual DTO/OpenAPI/client contracts and T01/T02/T03/T06 evidence.
+
+Exclude clients/projects/tasks/files/reviews/portal features, logo/profile images until Phase 4, notification preferences until Phase 6, and all professional design. Stop again at the Phase 2 review gate. **No part of this recommended scope was started.**

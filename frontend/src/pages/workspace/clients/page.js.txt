@@ -1,0 +1,208 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) tog.onclick = function() { $('app').classList.toggle('min'); };
+
+// Load shared header
+if (H.loadHeader) H.loadHeader();
+
+var activeOrgId = auth.activeOrgId;
+var rawClients = [];
+var projectCounts = {};
+var contactCounts = {};
+var lastClientsRes = null;
+
+async function loadClients() {
+  if (!activeOrgId) return;
+  try {
+    // 1. Fetch clients
+    var cRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/clients') : api.get('/organizations/' + activeOrgId + '/clients?limit=100'));
+    rawClients = cRes.items || [];
+    lastClientsRes = cRes;
+
+    // 2. Fetch projects to count active/planned projects per client
+    projectCounts = {};
+    try {
+      var pRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects') : api.get('/organizations/' + activeOrgId + '/projects?limit=100'));
+      (pRes.items || []).forEach(function(p) {
+        if (p.client_id && (p.status === 'ACTIVE' || p.status === 'PLANNED')) {
+          projectCounts[p.client_id] = (projectCounts[p.client_id] || 0) + 1;
+        }
+      });
+    } catch (pErr) {
+      console.error('Failed to load projects for client counts', pErr);
+    }
+
+    renderClients();
+  } catch (err) {
+    H.handleErrorBanner(err, { bannerId: 'ce' });
+  }
+}
+
+function renderClients() {
+  var tb = $('tb');
+  var em = $('em');
+  var tblw = document.querySelector('.tblw');
+
+  if (rawClients.length === 0) {
+    if (em) em.hidden = false;
+    if (tb) tb.innerHTML = '';
+    return;
+  }
+
+  if (em) em.hidden = true;
+
+  if (tb) {
+    tb.innerHTML = rawClients.map(function(c) {
+      var activeProjects = projectCounts[c.id] || 0;
+      var lastAct = c.updated_at ? H.formatRelativeTime(c.updated_at) : '—';
+      var isActive = c.status === 'ACTIVE';
+
+      return '<tr data-id="' + esc(c.id) + '" data-revision="' + c.revision + '">' +
+        '<td><a class="lnk" href="/workspace/client?id=' + esc(c.id) + '">' + esc(c.name) + '</a></td>' +
+        '<td>' + activeProjects + '</td>' +
+        '<td>' + esc(lastAct) + '</td>' +
+        '<td><span class="tag' + (isActive ? '' : ' no') + '">' + (isActive ? 'Active' : 'Archived') + '</span></td>' +
+        '<td>' + (isActive ? '<button class="btn sm" data-a="' + esc(c.id) + '" data-revision="' + c.revision + '">Archive</button>' : '') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  if (H.renderCapNotice && lastClientsRes && tblw) {
+    H.renderCapNotice(tblw, lastClientsRes);
+  }
+
+  // Wire archive action buttons
+  document.querySelectorAll('[data-a]').forEach(function(b) {
+    b.onclick = async function(e) {
+      e.preventDefault();
+      var id = b.dataset.a;
+      var rev = parseInt(b.dataset.revision, 10);
+      var c = rawClients.find(function(x) { return x.id === id; });
+      if (!c) return;
+
+      var activeProjects = projectCounts[c.id] || 0;
+      if (activeProjects > 0) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = '“' + c.name + '” can’t be archived while it has active projects.';
+          ce.hidden = false;
+        }
+        return;
+      }
+
+      var confirmed = await (H.askConfirm ? H.askConfirm(
+        'Archiving is permanent and will make this client inactive. Clients with active projects cannot be archived.',
+        { title: 'Archive ' + c.name + '?', confirmText: 'Archive client', danger: true }
+      ) : Promise.resolve(window.confirm('Archive this client?')));
+
+      if (!confirmed) return;
+
+      try {
+        var ceEl = $('ce');
+        if (ceEl) ceEl.hidden = true;
+
+        await api.patch('/organizations/' + activeOrgId + '/clients/' + id, {
+          name: c.name,
+          description: c.description || '',
+          status: 'ARCHIVED'
+        }, { revision: rev });
+
+        await loadClients();
+      } catch (err) {
+        if (err.status === 409) {
+          var ceErr = $('ce');
+          if (ceErr) {
+            ceErr.textContent = '“' + c.name + '” can’t be archived while it has active projects.';
+            ceErr.hidden = false;
+          }
+        } else {
+          H.handleErrorBanner(err, { bannerId: 'ce' });
+        }
+      }
+    };
+  });
+}
+
+// Modal handling
+var ncBtn = $('nc');
+if (ncBtn) {
+  ncBtn.onclick = function() {
+    var derr = $('derr');
+    if (derr) {
+      derr.hidden = true;
+      derr.textContent = '';
+    }
+    var dg = $('dg');
+    if (dg && dg.showModal) dg.showModal();
+  };
+}
+
+document.querySelectorAll('[data-x]').forEach(function(b) {
+  b.onclick = function() {
+    var d = b.closest('dialog');
+    if (d) d.close();
+  };
+});
+
+var dgf = $('dgf');
+if (dgf) {
+  dgf.noValidate = true;
+  dgf.onsubmit = async function(e) {
+    e.preventDefault();
+    var nm = $('cn') ? $('cn').value.trim() : '';
+    var pn = $('pn') ? $('pn').value.trim() : '';
+    var pe = $('pe') ? $('pe').value.trim() : '';
+    var derr = $('derr');
+
+    if (!nm) {
+      if (derr) { derr.textContent = 'Enter the company name.'; derr.hidden = false; }
+      return;
+    }
+    if (pe && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(pe)) {
+      if (derr) { derr.textContent = 'Enter a valid email address.'; derr.hidden = false; }
+      return;
+    }
+    if (pn && !pe) {
+      if (derr) { derr.textContent = 'Contact email is required to add an initial contact.'; derr.hidden = false; }
+      return;
+    }
+
+    try {
+      var client = await api.post('/organizations/' + activeOrgId + '/clients', {
+        name: nm,
+        description: '',
+        status: 'ACTIVE'
+      });
+
+      if (pe && client && client.id) {
+        try {
+          await api.post('/organizations/' + activeOrgId + '/clients/' + client.id + '/contacts', {
+            name: pn || pe.split('@')[0],
+            email: pe,
+            status: 'ACTIVE'
+          });
+        } catch (contactErr) {
+          console.error('Failed to create initial contact', contactErr);
+        }
+      }
+
+      var dg = $('dg');
+      if (dg) dg.close();
+      if ($('cn')) $('cn').value = '';
+      if ($('pn')) $('pn').value = '';
+      if ($('pe')) $('pe').value = '';
+
+      await loadClients();
+    } catch (err) {
+      H.handleErrorBanner(err, { dialogErrElId: 'derr' });
+    }
+  };
+}
+
+loadClients();

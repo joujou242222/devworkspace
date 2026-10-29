@@ -1,0 +1,28 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.yourdomain.com/api/:path*"
+    },
+    {
+      "source": "/workspace/:page",
+      "destination": "/workspace/:page.html"
+    },
+    {
+      "source": "/project/:page",
+      "destination": "/project/:page.html"
+    },
+    {
+      "source": "/portal/:page",
+      "destination": "/portal/:page.html"
+    },
+    {
+      "source": "/:page",
+      "destination": "/:page.html"
+    }
+  ]
+}

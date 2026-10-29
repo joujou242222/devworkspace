@@ -1,0 +1,745 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activeProjectId = null;
+var currentProject = null;
+var isManager = false;
+var isContributor = false;
+
+var deliverables = [];
+var versions = [];
+var projectTasks = [];
+var clientApprovers = [];
+var activeReviewsMap = {};
+
+var cu = null; // index of active deliverable for dialogs
+var replaceTarget = null; // { delIndex, versionIndex, reviewId, reviewRevision }
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function updateTabs() {
+  var tabs = document.querySelector('.ptabs');
+  if (tabs && activeProjectId) {
+    tabs.querySelectorAll('a').forEach(function(a) {
+      var href = a.getAttribute('href');
+      if (href && href.indexOf('?') === -1 && href.indexOf('/workspace/') === -1) {
+        a.setAttribute('href', href + '?project=' + encodeURIComponent(activeProjectId));
+      }
+    });
+  }
+}
+
+function updateProjectHeader(p, clientName) {
+  var top = document.querySelector('.top');
+  if (!top || !p) return;
+  var statusLabel = p.status ? p.status.charAt(0) + p.status.slice(1).toLowerCase() : 'Active';
+  top.innerHTML = '<div><h1>' + esc(p.name) + '</h1><p>' + esc(clientName || 'Client') + ' · <span class="tag">' + esc(statusLabel) + '</span></p></div>';
+}
+
+function render() {
+  var em = $('em');
+  var out = $('out');
+  var ndBtn = $('nd');
+
+  if (ndBtn) ndBtn.style.display = isManager ? '' : 'none';
+  if (em) em.hidden = deliverables.length > 0;
+  if (!out) return;
+
+  if (deliverables.length === 0) {
+    out.innerHTML = '';
+    return;
+  }
+
+  out.innerHTML = deliverables.map(function(d, i) {
+    var dVersions = versions.filter(function(v) { return v.deliverable_id === d.id; });
+    dVersions.sort(function(a, b) { return b.version_number - a.version_number; });
+
+    var linkedTask = d.task_id ? projectTasks.find(function(t) { return t.id === d.task_id; }) : null;
+    var taskName = linkedTask ? linkedTask.title : 'none';
+
+    var hasOpenReview = dVersions.some(function(v) { return v.review_status === 'OPEN'; });
+
+    var versionsHtml = '';
+    if (dVersions.length === 0) {
+      versionsHtml = '<p class="empty"><b>No versions yet</b>Prepare the first version to share it.</p>';
+    } else {
+      var rowsHtml = dVersions.map(function(v, j) {
+        var k = i + ',' + j;
+        var isReady = true;
+        var isShared = v.share_status === 'ACTIVE';
+        var isReviewOpen = v.review_status === 'OPEN';
+
+        // Check if there is a newer version ready while this version has review open
+        var isStale = isReviewOpen && dVersions.some(function(x) {
+          return x.version_number > v.version_number;
+        });
+
+        var stHtml = '<span class="st ok">Ready</span>';
+        if (isShared) stHtml += ' <span class="st ok">Shared</span>';
+        if (isReviewOpen) stHtml += ' <span class="st">Review open</span>';
+        if (isStale) {
+          stHtml += '<br><span class="tag no" style="margin-top:6px;display:inline-block">A newer version is ready, but the review is still on v' + v.version_number + '</span>';
+        }
+
+        var shareBtn = '<button class="btn sm" data-sh="' + k + '">' + (isShared ? 'Unshare' : 'Share') + '</button>';
+        var reviewBtn = '<button class="btn sm" data-rv="' + k + '"' + (isShared ? '' : ' disabled title="Share the version first"') + '>' + (isReviewOpen ? 'Cancel review' : 'Open review') + '</button>';
+        var replaceBtn = isReviewOpen ? '<button class="btn sm" data-rp="' + k + '">Replace review</button>' : '';
+
+        return '<tr data-id="' + esc(v.id) + '">' +
+          '<td>v' + esc(v.version_number) + '</td>' +
+          '<td>' + esc('Version ' + v.version_number) + '</td>' +
+          '<td>' + esc(v.creator_name || 'Team member') + '</td>' +
+          '<td>' + (H.formatDate ? H.formatDate(v.created_at) : '—') + '</td>' +
+          '<td>' + stHtml + '</td>' +
+          '<td><div class="row2">' + (isManager ? (shareBtn + reviewBtn + replaceBtn) : '') + '</div></td>' +
+          '</tr>';
+      }).join('');
+
+      versionsHtml = '<div class="tblw"><table class="tbl"><thead><tr><th>Version</th><th>File</th><th>Prepared by</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+    }
+
+    var linkTaskBtn = isManager ? '<button class="btn sm" data-lt="' + i + '">' + (d.task_id ? 'Unlink task' : 'Link task') + '</button>' : '';
+    var prepareBtn = (isManager || isContributor) ? '<button class="btn sm lime" data-pv="' + i + '">Prepare version</button>' : '';
+
+    return '<section class="sec" style="max-width:none" data-del="' + esc(d.id) + '">' +
+      '<h2>' + esc(d.title) + ' <small style="font:400 14px var(--body);color:var(--muted)">' + dVersions.length + ' versions</small></h2>' +
+      '<div class="row2 mg"><small>Linked task: ' + esc(taskName) + '</small>' + linkTaskBtn + prepareBtn + '</div>' +
+      versionsHtml +
+      '</section>';
+  }).join('');
+
+  wireEvents();
+}
+
+function wireEvents() {
+  // Share / Unshare
+  document.querySelectorAll('[data-sh]').forEach(function(b) {
+    b.onclick = async function() {
+      var parts = b.getAttribute('data-sh').split(',').map(Number);
+      var d = deliverables[parts[0]];
+      var dVersions = versions.filter(function(v) { return v.deliverable_id === d.id; });
+      dVersions.sort(function(a, b) { return b.version_number - a.version_number; });
+      var v = dVersions[parts[1]];
+
+      var isShared = v.share_status === 'ACTIVE';
+      var isReviewOpen = v.review_status === 'OPEN';
+
+      if (isShared && isReviewOpen) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = 'Cancel the review before you stop sharing v' + v.version_number + '.';
+          ce.hidden = false;
+        }
+        return;
+      }
+
+      var newStatus = isShared ? 'REVOKED' : 'ACTIVE';
+      try {
+        await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/versions/' + v.id + '/share',
+          { status: newStatus },
+          { headers: { 'If-Match': '"' + (v.share_revision || 1) + '"' } }
+        );
+        var ce = $('ce');
+        if (ce) ce.hidden = true;
+        await loadData();
+      } catch (err) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = err.message || 'Failed to update share status.';
+          ce.hidden = false;
+        }
+      }
+    };
+  });
+
+  // Open / Cancel review
+  document.querySelectorAll('[data-rv]').forEach(function(b) {
+    b.onclick = async function() {
+      var parts = b.getAttribute('data-rv').split(',').map(Number);
+      var d = deliverables[parts[0]];
+      var dVersions = versions.filter(function(v) { return v.deliverable_id === d.id; });
+      dVersions.sort(function(a, b) { return b.version_number - a.version_number; });
+      var v = dVersions[parts[1]];
+
+      var isReviewOpen = v.review_status === 'OPEN';
+
+      if (isReviewOpen) {
+        // Cancel review
+        try {
+          var rev = activeReviewsMap[v.id];
+          var revId = rev ? rev.id : v.review_id;
+          var revRev = rev ? rev.revision : 1;
+
+          await api.post(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/reviews/' + revId + '/cancel',
+            {},
+            { headers: { 'If-Match': '"' + revRev + '"' } }
+          );
+          var ce = $('ce');
+          if (ce) ce.hidden = true;
+          await loadData();
+        } catch (err) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = err.message || 'Failed to cancel review.';
+            ce.hidden = false;
+          }
+        }
+      } else {
+        // Open review
+        // Check if deliverable already has an open review
+        if (dVersions.some(function(x) { return x.review_status === 'OPEN'; })) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = 'Only one review can be open at a time. Replace the open one instead.';
+            ce.hidden = false;
+          }
+          return;
+        }
+
+        if (clientApprovers.length === 0) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = 'No eligible client Approvers found. Grant access on Team & access first.';
+            ce.hidden = false;
+          }
+          return;
+        }
+
+        try {
+          await api.post(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/reviews',
+            {
+              version_id: v.id,
+              digest: v.digest,
+              approver_ids: clientApprovers.map(function(c) { return c.contact_id; }),
+              due_at: new Date(Date.now() + 86400000 * 3).toISOString()
+            }
+          );
+          var ce = $('ce');
+          if (ce) ce.hidden = true;
+          await loadData();
+        } catch (err) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = err.message || 'Failed to open review.';
+            ce.hidden = false;
+          }
+        }
+      }
+    };
+  });
+
+  // Replace review dialog
+  document.querySelectorAll('[data-rp]').forEach(function(b) {
+    b.onclick = function() {
+      var parts = b.getAttribute('data-rp').split(',').map(Number);
+      var d = deliverables[parts[0]];
+      var dVersions = versions.filter(function(v) { return v.deliverable_id === d.id; });
+      dVersions.sort(function(a, b) { return b.version_number - a.version_number; });
+      var currentReviewVersion = dVersions[parts[1]];
+
+      // Find other ready versions in this deliverable with higher version number
+      var eligibleNewer = dVersions.filter(function(x) {
+        return x.version_number > currentReviewVersion.version_number;
+      });
+
+      if (eligibleNewer.length === 0) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = 'There’s no other ready version to move the review to.';
+          ce.hidden = false;
+        }
+        return;
+      }
+
+      var rev = activeReviewsMap[currentReviewVersion.id];
+      var revId = rev ? rev.id : currentReviewVersion.review_id;
+      var revRev = rev ? rev.revision : 1;
+
+      replaceTarget = {
+        delIndex: parts[0],
+        currentVersion: currentReviewVersion,
+        reviewId: revId,
+        reviewRevision: revRev,
+        eligibleNewer: eligibleNewer
+      };
+
+      var rt = $('rt');
+      if (rt) {
+        rt.innerHTML = eligibleNewer.map(function(x) {
+          return '<option value="' + esc(x.id) + '">v' + esc(x.version_number) + '</option>';
+        }).join('');
+      }
+
+      var s1 = $('s1');
+      var s2 = $('s2');
+      var dq = $('dq');
+      if (s1) s1.hidden = false;
+      if (s2) s2.hidden = true;
+      if (dq) dq.showModal();
+    };
+  });
+
+  // Link / Unlink task
+  document.querySelectorAll('[data-lt]').forEach(function(b) {
+    b.onclick = async function() {
+      var i = Number(b.getAttribute('data-lt'));
+      var d = deliverables[i];
+      if (d.task_id) {
+        // Unlink task
+        try {
+          await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables/' + d.id,
+            { title: d.title, description: d.description || '', task_id: null, status: d.status || 'ACTIVE' },
+            { headers: { 'If-Match': '"' + d.revision + '"' } }
+          );
+          await loadData();
+        } catch (err) {
+          var ce = $('ce');
+          if (ce) {
+            ce.textContent = err.message || 'Failed to unlink task.';
+            ce.hidden = false;
+          }
+        }
+      } else {
+        cu = i;
+        var lt = $('lt');
+        if (lt) {
+          lt.innerHTML = projectTasks.map(function(t) {
+            return '<option value="' + esc(t.id) + '">' + esc(t.title) + '</option>';
+          }).join('');
+        }
+        var dk = $('dk');
+        if (dk) dk.showModal();
+      }
+    };
+  });
+
+  // Prepare version button
+  document.querySelectorAll('[data-pv]').forEach(function(b) {
+    b.onclick = function() {
+      cu = Number(b.getAttribute('data-pv'));
+      var dperr = $('dperr');
+      var pf = $('pf');
+      var pff = $('pff');
+      if (dperr) dperr.hidden = true;
+      if (pf) pf.value = '';
+      if (pff) pff.value = '';
+      var dp = $('dp');
+      if (dp) dp.showModal();
+    };
+  });
+}
+
+async function loadData() {
+  if (!activeOrgId || !activeProjectId) return;
+
+  // 1. Fetch Deliverables
+  try {
+    var dRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables') : api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables?limit=100'));
+    deliverables = dRes.items || [];
+  } catch (err) {
+    console.error('Failed to load deliverables:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) return;
+  }
+
+  // 2. Fetch Versions with share & review metadata
+  try {
+    var vRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/versions') : api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/versions?limit=100'));
+    versions = vRes.items || [];
+  } catch (_) {}
+
+  // 3. Fetch Reviews for review IDs & revisions
+  try {
+    var rRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/reviews') : api.get('/organizations/' + activeOrgId + '/reviews?limit=100'));
+    var rItems = rRes.items || [];
+    activeReviewsMap = {};
+    rItems.forEach(function(r) {
+      if (r.project_id === activeProjectId) {
+        activeReviewsMap[r.version_id] = r;
+      }
+    });
+  } catch (_) {}
+
+  // 4. Fetch Tasks for linking
+  try {
+    var tRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/tasks');
+    projectTasks = Array.isArray(tRes) ? tRes : (tRes.items || []);
+    var lt = $('lt');
+    if (lt) {
+      lt.innerHTML = projectTasks.map(function(t) {
+        return '<option value="' + esc(t.id) + '">' + esc(t.title) + '</option>';
+      }).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load tasks:', err);
+  }
+
+  // 5. Fetch Client Grants for eligible approvers
+  try {
+    var gRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/grants');
+    var gItems = Array.isArray(gRes) ? gRes : (gRes.items || []);
+    clientApprovers = gItems.filter(function(g) {
+      return g.role === 'APPROVER' && g.status === 'ACTIVE';
+    });
+  } catch (err) {
+    console.error('Failed to load grants:', err);
+  }
+
+  render();
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  activeOrgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId || session.principals[0].organization_id;
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  activeProjectId = params.get('project') || params.get('id');
+
+  if (!activeProjectId) {
+    var pRes = await api.get('/organizations/' + activeOrgId + '/projects?limit=1');
+    if (pRes && pRes.items && pRes.items.length) {
+      activeProjectId = pRes.items[0].id;
+    }
+  }
+
+  if (!activeProjectId) return;
+  updateTabs();
+
+  // Load project details & user role
+  try {
+    currentProject = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId);
+    var clientName = 'Client';
+    if (currentProject && currentProject.client_id) {
+      try {
+        var clientObj = await api.get('/organizations/' + activeOrgId + '/clients/' + currentProject.client_id);
+        if (clientObj) clientName = clientObj.name;
+      } catch (_) {}
+    }
+    updateProjectHeader(currentProject, clientName);
+  } catch (err) {
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) return;
+  }
+
+  try {
+    var membersRes = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/members?limit=100');
+    var members = membersRes.items || [];
+    var principalId = session.principals ? session.principals[0].id : null;
+    var myMembership = members.find(function(m) { return m.membership_id === principalId; });
+    var role = myMembership ? myMembership.role : null;
+    var orgRole = session.principals ? session.principals[0].role : null;
+
+    isManager = role === 'MANAGER' || orgRole === 'OWNER' || orgRole === 'ADMIN';
+    isContributor = role === 'CONTRIBUTOR';
+  } catch (_) {}
+
+  // Wire Cancel buttons on all dialogs
+  document.querySelectorAll('[data-x]').forEach(function(b) {
+    b.onclick = function() {
+      var d = b.closest('dialog');
+      if (d) d.close();
+    };
+  });
+
+  // Dialog #dn: New deliverable
+  var ndBtn = $('nd');
+  var dn = $('dn');
+  var dnf = $('dnf');
+  var dnerr = $('dnerr');
+  var nn = $('nn');
+
+  if (ndBtn && dn) {
+    ndBtn.onclick = function() {
+      if (dnerr) dnerr.hidden = true;
+      if (nn) nn.value = '';
+      dn.showModal();
+    };
+  }
+
+  if (dnf) {
+    dnf.onsubmit = async function(e) {
+      e.preventDefault();
+      var title = nn ? nn.value.trim() : '';
+      if (!title) {
+        if (dnerr) {
+          dnerr.textContent = 'Give the deliverable a name.';
+          dnerr.hidden = false;
+        }
+        return;
+      }
+
+      try {
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables',
+          { title: title, description: '', task_id: null, status: 'ACTIVE' }
+        );
+        if (dn) dn.close();
+        await loadData();
+      } catch (err) {
+        if (dnerr) {
+          dnerr.textContent = err.message || 'Failed to create deliverable.';
+          dnerr.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Dialog #dp: Prepare version
+  var dpf = $('dpf');
+  var dperr = $('dperr');
+  var pff = $('pff');
+  var pf = $('pf');
+  var dp = $('dp');
+
+  if (dpf) {
+    dpf.onsubmit = async function(e) {
+      e.preventDefault();
+      if (cu === null || !deliverables[cu]) return;
+      var del = deliverables[cu];
+
+      var file = (pff && pff.files && pff.files[0]) ? pff.files[0] : null;
+      var fileName = file ? file.name : (pf ? pf.value.trim() : '');
+
+      if (!file && !fileName) {
+        if (dperr) {
+          dperr.textContent = 'Choose or enter a file name for the version.';
+          dperr.hidden = false;
+        }
+        return;
+      }
+
+      // If no file input selected, generate standard PNG bytes
+      var fileBytes = file ? await file.arrayBuffer() : new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+        0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+      ]);
+
+      var mime = (file && file.type) ? file.type : 'image/png';
+      var fName = fileName.endsWith('.png') ? fileName : fileName + '.png';
+
+      try {
+        if (dperr) {
+          dperr.textContent = 'Uploading and scanning file…';
+          dperr.hidden = false;
+        }
+
+        // 1. Calculate digest
+        var hashBuffer = await crypto.subtle.digest('SHA-256', fileBytes);
+        var hashArray = Array.from(new Uint8Array(hashBuffer));
+        var digest = hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+        // 2. Upload intent
+        var intent = await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads',
+          {
+            name: fName,
+            purpose: 'DELIVERABLE',
+            folder_id: null,
+            size: fileBytes.byteLength,
+            digest: digest,
+            mime: mime
+          }
+        );
+
+        // 3. PUT binary to staging
+        var capUrl = new URL(intent.capability.url);
+        var stagingPath = capUrl.pathname + capUrl.search;
+        var putHeaders = {
+          'content-length': String(fileBytes.byteLength),
+          'content-type': mime,
+          ...(intent.capability.headers || {})
+        };
+        delete putHeaders['host'];
+        delete putHeaders['Host'];
+
+        var stagingRes = await fetch(stagingPath, {
+          method: 'PUT',
+          headers: putHeaders,
+          body: fileBytes
+        });
+
+        if (!stagingRes.ok && stagingRes.status !== 204) {
+          throw new Error('Upload to staging failed');
+        }
+
+        // 4. Finalize
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads/' + intent.id + '/finalize',
+          {}
+        );
+
+        // 5. Poll until READY
+        var start = Date.now();
+        var ready = false;
+        while (Date.now() - start < 60000) {
+          await new Promise(function(r) { setTimeout(r, 1000); });
+          var poll = await api.get('/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/uploads/' + intent.id);
+          if (poll.status === 'READY') {
+            ready = true;
+            break;
+          }
+          if (poll.status === 'REJECTED' || poll.status === 'FAILED') {
+            throw new Error('File was rejected by scanner.');
+          }
+        }
+
+        if (!ready) throw new Error('Scanner timed out.');
+
+        // 6. Create Version
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables/' + del.id + '/versions',
+          { asset_id: intent.id }
+        );
+
+        if (dp) dp.close();
+        await loadData();
+      } catch (err) {
+        if (dperr) {
+          dperr.textContent = err.message || 'Failed to prepare version.';
+          dperr.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Dialog #dk: Link task
+  var dkf = $('dkf');
+  var lt = $('lt');
+  var dk = $('dk');
+
+  if (dkf) {
+    dkf.onsubmit = async function(e) {
+      e.preventDefault();
+      if (cu === null || !deliverables[cu]) return;
+      var del = deliverables[cu];
+      var selectedTaskId = lt ? lt.value : null;
+
+      try {
+        await api.patch(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/deliverables/' + del.id,
+          { title: del.title, description: del.description || '', task_id: selectedTaskId, status: del.status || 'ACTIVE' },
+          { headers: { 'If-Match': '"' + del.revision + '"' } }
+        );
+        if (dk) dk.close();
+        await loadData();
+      } catch (err) {
+        var ce = $('ce');
+        if (ce) {
+          ce.textContent = err.message || 'Failed to link task.';
+          ce.hidden = false;
+        }
+      }
+    };
+  }
+
+  // Dialog #dq: Replace review
+  var rn = $('rn');
+  var rg = $('rg');
+  var s1 = $('s1');
+  var s2 = $('s2');
+  var rc = $('rc');
+  var rt = $('rt');
+  var dq = $('dq');
+
+  if (rn) {
+    rn.onclick = function() {
+      if (!replaceTarget) return;
+      var newVerId = rt ? rt.value : null;
+      var newVer = replaceTarget.eligibleNewer.find(function(x) { return x.id === newVerId; });
+      var newVerNum = newVer ? newVer.version_number : '?';
+
+      if (rc) rc.textContent = 'Replace the review on v' + replaceTarget.currentVersion.version_number + ' with v' + newVerNum + '?';
+      if (s1) s1.hidden = true;
+      if (s2) s2.hidden = false;
+    };
+  }
+
+  if (rg) {
+    rg.onclick = async function() {
+      if (!replaceTarget) return;
+      var newVerId = rt ? rt.value : null;
+      var newVer = replaceTarget.eligibleNewer.find(function(x) { return x.id === newVerId; });
+      if (!newVer) return;
+
+      if (dq) dq.close();
+
+      try {
+        // Ensure new version is shared before replacing
+        if (newVer.share_status !== 'ACTIVE') {
+          await api.patch(
+            '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/versions/' + newVer.id + '/share',
+            { status: 'ACTIVE' },
+            { headers: { 'If-Match': '"' + (newVer.share_revision || 1) + '"' } }
+          );
+        }
+
+        await api.post(
+          '/organizations/' + activeOrgId + '/projects/' + activeProjectId + '/reviews/' + replaceTarget.reviewId + '/replace',
+          {
+            version_id: newVer.id,
+            digest: newVer.digest,
+            approver_ids: clientApprovers.map(function(c) { return c.contact_id; }),
+            due_at: new Date(Date.now() + 86400000 * 3).toISOString()
+          },
+          { headers: { 'If-Match': '"' + replaceTarget.reviewRevision + '"' } }
+        );
+
+        var okMsg = $('ok');
+        if (okMsg) {
+          okMsg.textContent = 'Review replaced.';
+          okMsg.hidden = false;
+          setTimeout(function() { okMsg.hidden = true; }, 3000);
+        }
+        await loadData();
+      } catch (err) {
+        var ce = $('ce');
+        if (ce) {
+          if (err.status === 409 || err.status === 412) {
+            ce.textContent = 'A client decision was recorded while you were replacing the review. Nothing was changed. Reload to see it.';
+          } else {
+            ce.textContent = err.message || 'Failed to replace review.';
+          }
+          ce.hidden = false;
+        }
+      }
+    };
+  }
+
+  await loadData();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

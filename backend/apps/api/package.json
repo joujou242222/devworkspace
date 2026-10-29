@@ -1,0 +1,38 @@
+{
+  "name": "@devworkspace/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@devworkspace/contracts": "workspace:*",
+    "@devworkspace/database": "workspace:*",
+    "@devworkspace/server": "workspace:*",
+    "@nestjs/common": "12.1.3",
+    "@nestjs/core": "12.1.3",
+    "@nestjs/platform-express": "12.1.3",
+    "@nestjs/platform-socket.io": "12.1.3",
+    "@nestjs/websockets": "12.1.3",
+    "@thallesp/nestjs-better-auth": "2.8.0",
+    "better-auth": "1.7.10",
+    "express": "5.3.0",
+    "ioredis": "5.8.2",
+    "qs": "6.14.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "socket.io": "4.8.4"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6"
+  }
+}

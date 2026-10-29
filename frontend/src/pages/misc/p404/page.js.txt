@@ -1,0 +1,48 @@
+
+// Same screen for "missing" and "no permission" — never reveal which. No names, no data.
+// Until a real session check is wired in, both buttons show.
+// Replace `state` with your session check: 'in' → dashboard only, 'out' → log in only.
+// Preview: 404.html?as=in  or  404.html?as=out
+const state = new URLSearchParams(location.search).get('as');
+if (state === 'in') document.getElementById('login').hidden = true;
+if (state === 'out') document.getElementById('dash').hidden = true;
+document.getElementById('back').onclick = () => history.length > 1 ? history.back() : (location.href='/');
+
+/* eye that follows the cursor + draggable ghost bar */
+(function(){
+  var o=document.querySelector('.o'),ang=0,target=0,last=0,calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function setT(e){var r=o.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;target=Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI+90;last=performance.now()}
+  addEventListener('pointermove',setT,{passive:true});
+  (function loop(t){
+    if(t-last>2200)target+=.35;
+    var d=((target-ang+540)%360)-180;ang+=d*.12;
+    o.style.setProperty('--a',ang.toFixed(2)+'deg');
+    if(!calm||true)requestAnimationFrame(loop);
+  })(0);
+  var gh=document.getElementById('gh'),rows=document.getElementById('rows'),say=document.getElementById('say'),tries=document.getElementById('tries'),n=0;
+  if(!gh)return;
+  var msgs=['Nothing here either.','That slot is taken.','Still not found.','Nope. Not scheduled.','Okay, try the dashboard?'];
+  var span=4,startCol=3,dragging=false,sx=0,sy=0,tx=0,ty=0,colW=0,rowH=42;
+  function talk(t){say.textContent=t;say.classList.remove('pop');void say.offsetWidth;say.classList.add('pop')}
+  gh.addEventListener('pointerdown',function(e){
+    dragging=true;gh.setPointerCapture(e.pointerId);gh.classList.add('drag');
+    var w=rows.getBoundingClientRect().width;colW=(w+6)/7;sx=e.clientX-tx;sy=e.clientY-ty;e.preventDefault();
+  });
+  gh.addEventListener('pointermove',function(e){
+    if(!dragging)return;
+    tx=e.clientX-sx;ty=e.clientY-sy;
+    gh.style.setProperty('--tx',tx+'px');gh.style.setProperty('--ty',ty+'px');gh.style.translate=tx+'px '+ty+'px';
+  });
+  function end(){
+    if(!dragging)return;dragging=false;gh.classList.remove('drag');
+    var cols=Math.round(tx/colW),minC=1-startCol,maxC=7-(startCol+span-1);
+    cols=Math.max(minC,Math.min(maxC,cols));
+    var rws=Math.max(-1,Math.min(1,Math.round(ty/rowH)));
+    tx=cols*colW;ty=rws*rowH;
+    gh.style.setProperty('--tx',tx+'px');gh.style.setProperty('--ty',ty+'px');gh.style.translate=tx+'px '+ty+'px';
+    n++;tries.textContent=n;talk(msgs[Math.min(n-1,msgs.length-1)]);
+    gh.classList.remove('hit');void gh.offsetWidth;gh.classList.add('hit');
+    if(n>=4){var d=document.getElementById('dash');if(d&&!d.hidden){d.classList.remove('nudge');void d.offsetWidth;d.classList.add('nudge')}}
+  }
+  gh.addEventListener('pointerup',end);gh.addEventListener('pointercancel',end);
+})();

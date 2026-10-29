@@ -1,0 +1,39 @@
+Phase 8 final verification — 2026-10-19, Africa/Cairo
+Workspace: D:\Devworkspace. Approved local-development scope only; stop at Phase 8 review gate.
+Commands ran from the repository root. Raw private logs: ignored .local/phase8.
+No skipped/cancelled test is counted as passing. Repeated runs are not added to unique totals.
+
+pnpm build: PASS, exit 0, final full workspace build.
+pnpm check: PASS, exit 0; runtime/boundaries/docs/static infra/OpenAPI/env/lint/typecheck, 15/15 units, formatting.
+pnpm test:native: PASS 7/7, exit 0; apps stopped, owned retained native restart.
+pnpm test:integration: PASS 20/20, exit 0; separate isolated experiment mode.
+pnpm test:e2e:experiment: PASS 1/1, exit 0; separate isolated experiment mode.
+pnpm test:phase2: PASS 20/20, exit 0; final full backend sweep.
+pnpm test:phase3: PASS 27/27, exit 0; final full backend sweep.
+pnpm test:phase4: PASS 24/24, exit 0; final full backend sweep.
+pnpm test:phase5: PASS 21/21, exit 0; final full backend sweep.
+pnpm test:phase6: PASS 19/19, exit 0; final full backend sweep.
+pnpm test:phase7: PASS 13/13, exit 0; final full backend sweep.
+pnpm test:phase8: PASS 2/2, exit 0; final full backend sweep.
+pnpm test:e2e: PASS 1/1, exit 0; final UI.
+pnpm test:e2e:phase3: PASS 2/2, exit 0; final UI.
+pnpm test:e2e:phase4: PASS 3/3, exit 0; final UI.
+pnpm test:e2e:phase5: PASS 2/2, exit 0; final UI; immutable repeat-safe cycle fixture.
+pnpm test:e2e:phase6: PASS 1/1, exit 0; final UI.
+pnpm test:e2e:phase7: PASS 1/1, exit 0; final UI; unique publication fixture.
+pnpm test:e2e:phase8: PASS 5/5, exit 0; final UI.
+
+Additional focused management browser: PASS 1/1; includes confirmed ownership transfer and password change/new login.
+pnpm openapi:generate: PASS; actual overview page/limit parameters and exact-version query documented.
+Final pnpm check: PASS, exit 0, including 15/15 units, formatting and all report links.
+Final git diff --check: PASS, exit 0; existing CRLF normalization warnings only.
+Final preservation inventory: PASS, zero missing baseline files; migration/lockfile/local configuration checks unchanged.
+
+Preservation: zero missing baseline files; 43/43 prior SQL files unchanged; 43/43 applied hashes match source;
+lockfile/local configuration unchanged; 46/46 tenant tables force RLS; reviewed global onboarding receipt separate.
+No migration/dependency/Windows configuration change, database reset, canonical purge, commit, push or deployment.
+
+Earlier failures: retained PostgreSQL recovery/readiness; filter/form refresh and READY/listing races;
+ambiguous selector labels; async document revision recovery; duplicate/stale synthetic fixture correlation.
+Corrected and rerun without weakening domain/security assertions. Full failure details and Phase 9 limits:
+docs/PHASE_8_REPORT.md. No final restore/load/production certification is claimed.

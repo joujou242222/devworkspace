@@ -1,0 +1,21 @@
+{
+  "seaweedfs": {
+    "version": "4.48",
+    "url": "https://github.com/seaweedfs/seaweedfs/releases/download/4.48/windows_amd64.zip",
+    "sha256": "fe90c04c0620ad1a1c756f86cd5e1443773f56a446688077a4bb5ec04c3cc874",
+    "binary": "weed.exe"
+  },
+  "mailpit": {
+    "version": "1.31.6",
+    "url": "https://github.com/axllent/mailpit/releases/download/v1.31.6/mailpit-windows-amd64.zip",
+    "sha256": "5d5ad094bfb3bac9004f9d1105d2335fea9f8952c09951df73ae0a280e34d3b1",
+    "binary": "mailpit.exe"
+  },
+  "memurai": {
+    "version": "4.1.7",
+    "url": "https://api.nuget.org/v3-flatcontainer/memuraideveloper/4.1.7/memuraideveloper.4.1.7.nupkg",
+    "sha256": "96800a0154e2ce02f61ba614b749a8b81f5a924c20687870394cb3aa86e2f2a4",
+    "sha512base64": "yC0p3Vfmr3yYZ9MoEJ3HgGZIPhalBgUGuFHH0OtSd6cuRHYqJmQM6gpRs2t2sMiQX1T9h4weeb90F1+IhsaCvg==",
+    "binary": "tools/memurai.exe"
+  }
+}

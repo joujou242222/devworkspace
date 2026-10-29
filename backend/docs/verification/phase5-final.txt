@@ -1,0 +1,26 @@
+Phase 5 verification evidence — 2026-10-17
+Scope: local functional Phase 5; stop before Phase 6.
+pnpm phase2:prepare: PASS; additive 0021–0027, all 27 applied hashes verified
+pnpm test:phase5: PASS 21/21
+node --test --test-timeout=600000 tests/phase5/security.test.mjs: PASS 3/3
+pnpm test:e2e:phase5: PASS 2/2
+pnpm test:phase2: PASS 20/20
+pnpm test:phase3: PASS 27/27
+pnpm test:phase4: PASS 24/24
+pnpm test:e2e: PASS 1/1
+pnpm test:e2e:phase3: PASS 2/2
+pnpm test:e2e:phase4: PASS 3/3
+pnpm test:native (app stopped): PASS 7/7
+pnpm test:integration (experiment mode): PASS 20/20
+pnpm test:e2e:experiment (experiment mode): PASS 1/1
+pnpm build: PASS; web/API/worker/packages
+pnpm check: PASS; runtime, boundaries, docs, infrastructure, OpenAPI, environment, lint, typecheck, 11 unit tests and formatting
+pnpm check:docs; git diff --check: PASS; final documentation and whitespace checks
+All node-test runs above report zero failures, cancellations and skips.
+Final source backlink: focused integration and browser checks after the full 21-scenario run.
+27 applied migration SHA-256 hashes verified against the retained database ledger.
+Baseline file inventory: see phase5-files.json. No missing baseline files; lockfile and prior SQL unchanged.
+No deployment, commit, push, dependency upgrade, broad purge or canonical deletion.
+Scoped synthetic regression cleanup follows the existing Phase 4/native test harness.
+Inherited Phase 4 recovery limits remain; no full object-content audit/restore rehearsal claimed.
+Private raw logs/screenshots remain in ignored .local; no credentials, signed URLs or private content included here.

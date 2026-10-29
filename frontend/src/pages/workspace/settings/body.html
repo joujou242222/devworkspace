@@ -1,0 +1,21 @@
+
+<div class="app" id="app">
+<aside class="side dk">
+  <a class="brand" href="/" aria-label="Devworkspace home"><span class="lgm" aria-hidden="true"><i></i><i></i><i></i></span><span class="lgw"><span class="d">Dev</span><span class="w">workspace</span></span></a><i class="rule" aria-hidden="true"></i>
+  <nav aria-label="Workspace"><a href="/workspace/dashboard"><span>Dashboard</span></a><a href="/workspace/projects"><span>Projects</span></a><a href="/workspace/my-tasks"><span>My tasks</span></a><a href="/workspace/clients"><span>Clients</span></a><a href="/workspace/reviews"><span>Review center</span></a><a href="/workspace/documents"><span>Documents</span></a><a href="/workspace/reports"><span>Reports</span></a><a href="/workspace/team"><span>Team</span></a><a href="/workspace/audit"><span>Audit log</span></a><a href="/workspace/settings" aria-current="page"><span>Settings</span></a></nav>
+  <button class="tog" id="tog" aria-label="Collapse sidebar">&larr;</button>
+</aside>
+<main class="page">
+<div class="util"><button class="ib" id="bell" aria-expanded="false" aria-controls="dr"><i class="dot" id="bd"></i>Notifications</button><a class="ib" href="/workspace/account"><span class="av" style="width:28px;height:28px;font-size:12px">SA</span>Sara</a>
+<div class="drawer" id="dr" hidden><h2 style="border:0;padding:0;font-size:20px;margin-bottom:6px">Notifications</h2><ul class="nl" id="dl"></ul><div class="ft"><a href="/workspace/notifications">View all</a><a href="/workspace/account#prefs">Preferences</a></div></div></div>
+<div class="top"><div><h1>Settings</h1><p>Details your whole team and clients see.</p></div></div><section class="sec"><h2>Organization</h2><div class="msg err mg" id="le" role="alert" hidden>This image was rejected. Use a JPG or PNG under 2 MB.</div>
+<div class="row2 mg"><span class="av big" id="lg" style="border-radius:22px">SN</span><div><div class="row2"><label class="btn sm" for="lu" tabindex="0">Change logo</label><input id="lu" type="file" accept="image/png,image/jpeg" hidden><button class="btn sm" id="lr" type="button">Remove</button></div><small id="lp" style="color:var(--muted)">Your current logo stays until the new one is ready.</small></div></div>
+<div class="fld"><label for="cn">Company name</label><input id="cn" type="text" autocomplete="organization" value="Studio Nour"></div><div class="fld"><label for="cd">Description</label><textarea id="cd">A film and campaign studio in Alexandria.</textarea></div>
+<div class="fld"><label for="tz">Time zone</label><select id="tz"><option>Africa/Cairo (GMT+2)</option><option>Europe/London (GMT)</option><option>Asia/Dubai (GMT+4)</option><option>America/New_York (GMT−5)</option></select></div>
+<div class="msg mg" id="ok" role="status" hidden>Settings saved.</div><button class="btn lime" id="sv">Save settings</button></section>
+<section class="danger"><h2>Danger zone</h2><p style="margin-bottom:16px">Transferring ownership makes someone else the owner. You’ll become an admin.</p>
+<div class="msg err mg" id="re" role="alert" hidden>Sign in again before transferring ownership. <a href="/login">Sign in</a></div>
+<div class="fld"><label for="to">New owner</label><select id="to"><option>Omar Hassan</option><option>Layla Samir</option></select></div>
+<div class="fld"><label for="tc">Type <b>Studio Nour</b> to confirm</label><input id="tc" autocomplete="off"></div><button class="btn red" id="tb" disabled>Transfer ownership</button></section>
+</main></div>
+

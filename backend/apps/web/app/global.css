@@ -1,0 +1,88 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 68rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #17212b;
+  background: #fafafa;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+form {
+  border: 1px solid #c4cbd1;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: 40rem;
+}
+label {
+  display: block;
+  margin: 0.75rem 0;
+}
+input:not([type='checkbox']),
+textarea,
+select {
+  display: block;
+  font: inherit;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem;
+}
+textarea {
+  width: 100%;
+  min-height: 5rem;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  margin: 0.3rem;
+  padding: 0.4rem 0.8rem;
+}
+button:disabled {
+  cursor: wait;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+[role='alert'] {
+  border: 2px solid #a32121;
+  padding: 1rem;
+}
+a {
+  color: #0645ad;
+}
+small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 3px solid #0645ad;
+  outline-offset: 3px;
+}
+.skip-link {
+  position: absolute;
+  left: -10000px;
+}
+.skip-link:focus {
+  position: static;
+}
+img {
+  max-width: 100%;
+}
+table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+p,
+li,
+dd {
+  overflow-wrap: anywhere;
+}

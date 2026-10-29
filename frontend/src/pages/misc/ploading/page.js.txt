@@ -1,0 +1,8 @@
+
+const f=document.getElementById('f');
+function setView(v){document.body.dataset.view=v;document.querySelectorAll('.demo button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));if(v==='blocks')fail()}
+document.querySelectorAll('.demo button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+function fail(){f.className='blk fail';f.innerHTML='<b>Files</b><p>We couldn’t load this block.</p><button class="btn" type="button">Try again</button>';
+  f.querySelector('button').onclick=()=>{f.className='blk ld';f.innerHTML='<b>Files</b><i class="ln"></i><i class="ln" style="width:55%"></i>';
+    setTimeout(()=>{f.className='blk';f.innerHTML='<b>Files</b><i class="ln" style="--w:70%"></i><i class="ln" style="--w:45%"></i>'},1400)}}
+fail();

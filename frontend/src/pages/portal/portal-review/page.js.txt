@@ -1,0 +1,538 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activePrincipalId = null;
+var activeProjectId = null;
+var activeReviewId = null;
+var clientPrincipals = [];
+var projectOverview = null;
+var reviewData = null;
+var deliverableTitle = 'Deliverable';
+var feedbackItems = [];
+var notifications = [];
+var selectedPin = -1;
+var pendingPin = null;
+var lastActionMessage = '';
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function renderNotifications() {
+  var bd = $('bd');
+  var dl = $('dl');
+  var bell = $('bell');
+  var dr = $('dr');
+  if (!bell || !dr) return;
+
+  var unread = notifications.filter(function(n) { return !n.read_at; }).length;
+  if (bd) bd.style.display = unread > 0 ? '' : 'none';
+
+  bell.onclick = function() {
+    dr.hidden = !dr.hidden;
+    bell.setAttribute('aria-expanded', String(!dr.hidden));
+  };
+
+  if (dl) {
+    if (notifications.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = notifications.map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var dr = $('dr');
+  var bell = $('bell');
+  if (dr && bell && !dr.hidden && !e.target.closest('#dr,#bell')) {
+    dr.hidden = true;
+    bell.setAttribute('aria-expanded', 'false');
+  }
+});
+
+function askConfirmDialog(title, message, onConfirm) {
+  var d = $('dg');
+  if (!d) {
+    d = document.createElement('dialog');
+    d.id = 'dg';
+    document.body.appendChild(d);
+  }
+  d.innerHTML = '<form method="dialog">' +
+    '<h2>' + esc(title) + '</h2>' +
+    '<p style="margin:12px 0 18px">' + esc(message) + '</p>' +
+    '<div class="row2">' +
+    '<button class="btn lime" id="confirmBtn" value="ok" type="submit">Confirm</button>' +
+    '<button class="btn" value="no" type="button" id="cancelBtn">Back</button>' +
+    '</div>' +
+    '</form>';
+
+  d.querySelector('#cancelBtn').onclick = function() { d.close(); };
+  d.querySelector('form').onsubmit = function(e) {
+    e.preventDefault();
+    d.close();
+    onConfirm();
+  };
+  d.showModal();
+}
+
+function render() {
+  var mn = $('mn');
+  if (!mn) return;
+
+  if (!reviewData) {
+    mn.innerHTML = '<p class="empty">No review available.</p>';
+    return;
+  }
+
+  var wsSelect = $('ws');
+  var currentOrgName = (wsSelect && wsSelect.options[wsSelect.selectedIndex]) ? wsSelect.options[wsSelect.selectedIndex].text : 'Studio';
+  var projectName = (projectOverview && projectOverview.name) ? projectOverview.name : 'Project';
+
+  var verNum = (reviewData.version && reviewData.version.version_number) ? reviewData.version.version_number : (reviewData.cycle_number || 1);
+  var sharedDate = reviewData.created_at ? (H.formatDate ? H.formatDate(reviewData.created_at) : reviewData.created_at.slice(0, 10)) : 'Recently';
+  var dueStr = reviewData.due_at ? ('please decide by ' + (H.formatDate ? H.formatDate(reviewData.due_at) : reviewData.due_at.slice(0, 10))) : 'open';
+
+  // Status banners
+  var bannerHtml = '';
+  if (reviewData.status === 'APPROVED') {
+    bannerHtml = '<div class="msg mg">This review was approved.</div>';
+  } else if (reviewData.status === 'CHANGES_REQUESTED') {
+    bannerHtml = '<div class="msg mg">Changes were requested for this version.</div>';
+  } else if (reviewData.status === 'CANCELLED') {
+    bannerHtml = '<div class="msg mg">This review was replaced or cancelled. You can read it, but not decide.</div>';
+  }
+
+  // Previews / Pins
+  var previewUrl = '/api/v1/organizations/' + encodeURIComponent(activeOrgId) + '/portal/projects/' + encodeURIComponent(activeProjectId) + '/reviews/' + encodeURIComponent(activeReviewId) + '/preview/1';
+
+  var pinButtonsHtml = feedbackItems.map(function(item, idx) {
+    if (!item.annotation || item.annotation.x == null || item.annotation.y == null) return '';
+    var pt = item.annotation;
+    var xPct = Math.round(pt.x * 100);
+    var yPct = Math.round(pt.y * 100);
+    var isSel = selectedPin === idx;
+    return '<button class="pin' + (isSel ? ' on' : '') + '" style="left:' + xPct + '%;top:' + yPct + '%" data-pin="' + idx + '" aria-label="Comment ' + (idx + 1) + '">' + (idx + 1) + '</button>';
+  }).join('');
+
+  if (pendingPin) {
+    var px = Math.round(pendingPin.x * 100);
+    var py = Math.round(pendingPin.y * 100);
+    pinButtonsHtml += '<button class="pin on" style="left:' + px + '%;top:' + py + '%;background:#e03131" aria-label="New pin">*</button>';
+  }
+
+  var playerHtml = '<div class="player">' +
+    '<div class="pbar"><i class="rec"></i><span>' + esc(deliverableTitle) + '</span><em>v' + esc(verNum) + '</em></div>' +
+    '<div class="prev" id="previewContainer" style="position:relative;cursor:crosshair;min-height:220px;background:#1a1a1a;display:flex;align-items:center;justify-content:center">' +
+    '<img id="pvImg" alt="Version preview" style="max-width:100%;height:auto;display:block;" />' +
+    pinButtonsHtml +
+    '</div>' +
+    '</div>';
+
+  // Decisions log
+  var decisionsLogHtml = '';
+  if (reviewData.decision) {
+    var dec = reviewData.decision;
+    var decDate = dec.created_at ? (H.formatDate ? H.formatDate(dec.created_at) : dec.created_at.slice(0, 10)) : '';
+    var decLabel = dec.decision === 'APPROVED' ? 'Approved' : 'Changes requested';
+    decisionsLogHtml = '<h2 style="margin-top:28px">Decision history</h2>' +
+      '<ul class="act">' +
+      '<li><time>' + esc(decDate) + '</time>Version ' + esc(verNum) + ' · ' + esc(decLabel) + (dec.reason ? (' — ' + esc(dec.reason)) : '') + '</li>' +
+      '</ul>';
+  }
+
+  // Comments column
+  var commentsListHtml = '';
+  if (feedbackItems.length === 0) {
+    commentsListHtml = '<p class="empty"><small>No comments yet. Click anywhere on the preview to add a pin.</small></p>';
+  } else {
+    commentsListHtml = feedbackItems.map(function(item, idx) {
+      var isSel = selectedPin === idx;
+      var dateStr = item.created_at ? (H.formatDate ? H.formatDate(item.created_at) : item.created_at.slice(0, 10)) : '';
+      var author = item.capacity === 'CLIENT' ? 'You' : esc(currentOrgName);
+      var repliesHtml = (item.replies || []).map(function(r) {
+        var rAuthor = r.capacity === 'CLIENT' ? 'You' : esc(currentOrgName);
+        return '<div class="rp">' + esc(rAuthor) + ': ' + esc(r.body) + '</div>';
+      }).join('');
+
+      return '<div class="cmt' + (isSel ? ' on' : '') + '" data-c="' + idx + '" style="cursor:pointer">' +
+        '<b style="font-weight:500">' + (idx + 1) + '. ' + esc(author) + '</b> <small>' + esc(dateStr) + '</small><br>' +
+        esc(item.body) +
+        repliesHtml +
+        '</div>';
+    }).join('');
+  }
+
+  var addCommentForm = '';
+  if (reviewData.canFeedback) {
+    var pinNotice = pendingPin ? (' (Pin placed at ' + Math.round(pendingPin.x * 100) + '%, ' + Math.round(pendingPin.y * 100) + '%)') : '';
+    addCommentForm = '<div class="fld" style="margin-top:14px">' +
+      '<label for="nc">Add a comment' + esc(pinNotice) + '</label>' +
+      '<textarea id="nc" placeholder="Type your note here..."></textarea>' +
+      '</div>' +
+      '<button class="btn sm" id="ac">Add comment</button>';
+  }
+
+  // Decision section
+  var decisionSection = '';
+  if (reviewData.canDecide) {
+    decisionSection = '<div class="ask" id="decisionBox" style="margin-top:32px">' +
+      '<h2>Your decision</h2>' +
+      '<p>You’re deciding on <b>' + esc(deliverableTitle) + ', version ' + esc(verNum) + '</b> (' + esc(sharedDate) + ').</p>' +
+      '<div class="row2">' +
+      '<button class="btn lime" id="ap">Approve</button>' +
+      '<button class="btn" id="rq" style="color:#fff;border-color:#fff">Request changes</button>' +
+      '</div>' +
+      '<div id="rv" hidden style="margin-top:16px">' +
+      '<label for="rt" style="display:block;margin-bottom:6px">What should change in version ' + esc(verNum) + '?</label>' +
+      '<textarea id="rt" style="width:100%;min-height:80px;border-radius:18px;padding:12px;font:inherit"></textarea>' +
+      '<button class="btn lime" id="sr" style="margin-top:8px">Send request</button>' +
+      '</div>' +
+      '</div>';
+  } else if (reviewData.status === 'OPEN' && !reviewData.canDecide) {
+    decisionSection = '<div class="msg mg" style="margin-top:28px">You can comment on this version, but only an eligible Approver can make the decision.</div>';
+  }
+
+  mn.innerHTML = '<p style="margin-bottom:10px"><a class="lnk" href="/portal/portal-project?id=' + encodeURIComponent(activeProjectId) + '">&larr; ' + esc(projectName) + '</a></p>' +
+    '<h1>' + esc(deliverableTitle) + '</h1>' +
+    '<p class="sub">Version ' + esc(verNum) + ' · shared ' + esc(sharedDate) + ' · ' + esc(dueStr) + '</p>' +
+    bannerHtml +
+    '<div class="grid">' +
+    '<div>' + playerHtml + decisionsLogHtml + '</div>' +
+    '<div><h2>Comments</h2>' + commentsListHtml + addCommentForm + '</div>' +
+    '</div>' +
+    decisionSection +
+    (lastActionMessage
+      ? '<div class="msg mg" id="ok" role="status" style="margin-top:20px">' + esc(lastActionMessage) + '</div>'
+      : '<div class="msg mg" id="ok" role="status" hidden style="margin-top:20px"></div>');
+
+  // Event handlers
+  attachEvents();
+  loadPreviewImage();
+}
+
+async function loadPreviewImage() {
+  if (!activeOrgId || !activeProjectId || !activeReviewId) return;
+  var pvImg = $('pvImg');
+  if (!pvImg) return;
+  try {
+    var previewUrl = '/api/v1/organizations/' + encodeURIComponent(activeOrgId) + '/portal/projects/' + encodeURIComponent(activeProjectId) + '/reviews/' + encodeURIComponent(activeReviewId) + '/preview/1';
+    var res = await fetch(previewUrl, {
+      headers: {
+        'x-organization-principal': activePrincipalId
+      },
+      credentials: 'include'
+    });
+    if (res.ok) {
+      var blob = await res.blob();
+      pvImg.src = URL.createObjectURL(blob);
+    }
+  } catch (_) {}
+}
+
+function attachEvents() {
+  var prev = $('previewContainer');
+  if (prev && reviewData && reviewData.canFeedback) {
+    prev.onclick = function(e) {
+      if (e.target.closest('.pin')) return;
+      var r = prev.getBoundingClientRect();
+      var x = Math.max(0, Math.min(1, Math.round(((e.clientX - r.left) / r.width) * 1000) / 1000));
+      var y = Math.max(0, Math.min(1, Math.round(((e.clientY - r.top) / r.height) * 1000) / 1000));
+      pendingPin = { x: x, y: y };
+      render();
+      var nc = $('nc');
+      if (nc) nc.focus();
+    };
+  }
+
+  document.querySelectorAll('.pin').forEach(function(p) {
+    p.onclick = function(e) {
+      e.stopPropagation();
+      var idx = Number(p.dataset.pin);
+      selectedPin = (selectedPin === idx) ? -1 : idx;
+      render();
+    };
+  });
+
+  document.querySelectorAll('.cmt').forEach(function(c) {
+    c.onclick = function() {
+      var idx = Number(c.dataset.c);
+      selectedPin = (selectedPin === idx) ? -1 : idx;
+      render();
+    };
+  });
+
+  var ac = $('ac');
+  if (ac) {
+    ac.onclick = async function() {
+      var nc = $('nc');
+      var bodyText = nc ? nc.value.trim() : '';
+      if (!bodyText) {
+        if (nc) nc.focus();
+        return;
+      }
+
+      var annotation = null;
+      if (pendingPin) {
+        annotation = {
+          type: 'IMAGE_PIN',
+          x: pendingPin.x,
+          y: pendingPin.y
+        };
+      }
+
+      ac.disabled = true;
+      try {
+        await api.post('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews/' + activeReviewId + '/feedback', {
+          version_id: reviewData.version_id,
+          digest: reviewData.version.digest,
+          visibility: 'CLIENT',
+          body: bodyText,
+          annotation: annotation
+        });
+        pendingPin = null;
+        await loadFeedback();
+        render();
+      } catch (err) {
+        console.error('Failed to post comment:', err);
+        alert(err.message || 'Failed to submit comment');
+        ac.disabled = false;
+      }
+    };
+  }
+
+  // Decision buttons
+  var ap = $('ap');
+  var rq = $('rq');
+  var rv = $('rv');
+  var sr = $('sr');
+  var ok = $('ok');
+
+  if (ap) {
+    ap.onclick = function() {
+      var verNum = (reviewData.version && reviewData.version.version_number) ? reviewData.version.version_number : 1;
+      askConfirmDialog(
+        'Approve version ' + verNum + '?',
+        'This approves ' + deliverableTitle + ', version ' + verNum + ' only. It won’t carry over to other versions.',
+        async function() {
+          try {
+            var idempKey = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            }));
+            await api.post('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews/' + activeReviewId + '/decisions', {
+              version_id: reviewData.version_id,
+              digest: reviewData.version.digest,
+              decision: 'APPROVED',
+              reason: 'Approved by client'
+            }, {
+              headers: {
+                'If-Match': '"' + reviewData.revision + '"',
+                'idempotency-key': idempKey
+              }
+            });
+            lastActionMessage = 'You approved version ' + verNum + '. Studio has been told.';
+            await loadReview();
+            render();
+          } catch (err) {
+            console.error('Failed to approve review:', err);
+            alert(err.message || 'Failed to approve review');
+          }
+        }
+      );
+    };
+  }
+
+  if (rq && rv) {
+    rq.onclick = function() {
+      rv.hidden = false;
+      var rt = $('rt');
+      if (rt) rt.focus();
+    };
+  }
+
+  if (sr) {
+    sr.onclick = function() {
+      var rt = $('rt');
+      var notes = rt ? rt.value.trim() : '';
+      if (!notes) {
+        if (ok) {
+          ok.className = 'msg err mg';
+          ok.textContent = 'Write what should change before sending.';
+          ok.hidden = false;
+        }
+        if (rt) rt.focus();
+        return;
+      }
+
+      var verNum = (reviewData.version && reviewData.version.version_number) ? reviewData.version.version_number : 1;
+      askConfirmDialog(
+        'Request changes on version ' + verNum + '?',
+        'This sends your note to Studio for version ' + verNum + ' only.',
+        async function() {
+          try {
+            var idempKey = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            }));
+            await api.post('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews/' + activeReviewId + '/decisions', {
+              version_id: reviewData.version_id,
+              digest: reviewData.version.digest,
+              decision: 'CHANGES_REQUESTED',
+              reason: notes
+            }, {
+              headers: {
+                'If-Match': '"' + reviewData.revision + '"',
+                'idempotency-key': idempKey
+              }
+            });
+            lastActionMessage = 'Changes requested on version ' + verNum + '. Studio has been told.';
+            await loadReview();
+            render();
+          } catch (err) {
+            console.error('Failed to request changes:', err);
+            alert(err.message || 'Failed to request changes');
+          }
+        }
+      );
+    };
+  }
+}
+
+async function loadFeedback() {
+  if (!activeOrgId || !activeProjectId || !activeReviewId) return;
+  try {
+    var fRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews/' + activeReviewId + '/feedback?limit=100');
+    feedbackItems = fRes.items || (Array.isArray(fRes) ? fRes : []);
+  } catch (err) {
+    console.error('Failed to load feedback:', err);
+  }
+}
+
+async function loadReview() {
+  if (!activeOrgId || !activeProjectId || !activeReviewId) return;
+  try {
+    reviewData = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews/' + activeReviewId);
+  } catch (err) {
+    console.error('Failed to load review:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'mn')) return;
+  }
+
+  // Lookup deliverable title from shared versions if possible
+  try {
+    var vRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/versions?limit=50');
+    var vItems = vRes.items || [];
+    var matchVer = vItems.find(function(v) { return v.id === reviewData.version_id; });
+    if (matchVer && matchVer.title) {
+      deliverableTitle = matchVer.title;
+    }
+  } catch (_) {}
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = (auth.getClientPrincipals ? auth.getClientPrincipals() : []) || [];
+  activeOrgId = auth.getActiveOrgId();
+  activePrincipalId = auth.getActivePrincipalId();
+
+  // Populate workspace selector
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(p) {
+      var name = p.name || p.organization_name || ('Studio ' + (p.organization_id || '').slice(0, 4));
+      var sel = (p.id === activePrincipalId || p.organization_id === activeOrgId) ? ' selected' : '';
+      return '<option value="' + esc(p.id) + '" data-org="' + esc(p.organization_id) + '"' + sel + '>' + esc(name) + '</option>';
+    }).join('');
+
+    ws.onchange = async function() {
+      var opt = ws.options[ws.selectedIndex];
+      var pid = opt ? opt.value : null;
+      if (pid && pid !== activePrincipalId) {
+        $('mn').innerHTML = '<p class="empty">Switching workspace…</p>';
+        await auth.switchPrincipal(pid);
+        window.location.href = '/portal/portal-projects';
+      }
+    };
+  }
+
+  var urlParams = new URLSearchParams(window.location.search);
+  activeProjectId = urlParams.get('id');
+  activeReviewId = urlParams.get('review');
+
+  if (!activeProjectId) {
+    try {
+      var pRes = await api.get('/organizations/' + activeOrgId + '/portal/projects?limit=1');
+      var pItems = pRes.items || (Array.isArray(pRes) ? pRes : []);
+      if (pItems.length > 0) {
+        activeProjectId = pItems[0].id;
+      }
+    } catch (_) {}
+  }
+
+  if (!activeProjectId) {
+    $('mn').innerHTML = '<h1>Review</h1><p class="empty">No project selected.</p>';
+    return;
+  }
+
+  // Load project overview
+  try {
+    projectOverview = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId);
+  } catch (_) {}
+
+  // If reviewId not passed in URL, pick latest open review
+  if (!activeReviewId) {
+    try {
+      var rRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews?status=OPEN&limit=1');
+      var rItems = rRes.items || (Array.isArray(rRes) ? rRes : []);
+      if (rItems.length > 0) {
+        activeReviewId = rItems[0].id;
+      }
+    } catch (_) {}
+  }
+
+  if (!activeReviewId) {
+    $('mn').innerHTML = '<h1>Review</h1><p class="empty">No review cycle found for this project.</p>';
+    return;
+  }
+
+  await loadReview();
+  await loadFeedback();
+
+  // Load notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=8');
+    notifications = nRes.items || (Array.isArray(nRes) ? nRes : []);
+    renderNotifications();
+  } catch (_) {}
+
+  render();
+}
+
+init();

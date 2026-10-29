@@ -1,0 +1,226 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activePrincipalId = null;
+var activeProjectId = null;
+var clientPrincipals = [];
+var projectOverview = null;
+var openReview = null;
+var sharedVersions = [];
+var projectUpdates = [];
+var notifications = [];
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function renderNotifications() {
+  var bd = $('bd');
+  var dl = $('dl');
+  var hasUnread = notifications.some(function(n) { return !n.read_at; });
+  if (bd) bd.style.display = hasUnread ? '' : 'none';
+  if (dl) {
+    if (notifications.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = notifications.map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+function render() {
+  var mn = $('mn');
+  if (!mn || !projectOverview) return;
+
+  var wsSelect = $('ws');
+  var currentOrgName = (wsSelect && wsSelect.options[wsSelect.selectedIndex]) ? wsSelect.options[wsSelect.selectedIndex].text : 'Studio';
+
+  var hasOpenReview = !!openReview;
+  var statusBadge = hasOpenReview
+    ? '<span class="tag">Waiting for you</span>'
+    : '<span class="tag">' + esc(projectOverview.status || 'Active') + '</span>';
+
+  var askHtml = '';
+  if (hasOpenReview) {
+    var linkedVer = sharedVersions.find(function(v) { return v.id === openReview.version_id; });
+    var delTitle = (linkedVer && linkedVer.title) ? linkedVer.title : (openReview.title || 'Deliverable');
+    var verNum = (linkedVer && linkedVer.version_number) ? linkedVer.version_number : (openReview.version_number || 1);
+    var dueStr = openReview.due_at ? (H.formatDate ? H.formatDate(openReview.due_at) : openReview.due_at.slice(0, 10)) : 'Soon';
+    askHtml = '<div class="ask">' +
+      '<h2>Needs your decision</h2>' +
+      '<p>' + esc(delTitle) + ' · version ' + esc(verNum) + ' · due ' + esc(dueStr) + '</p>' +
+      '<a class="btn lime" href="/portal/portal-review?id=' + encodeURIComponent(activeProjectId) + '&review=' + encodeURIComponent(openReview.id) + '">Review version ' + esc(verNum) + '</a>' +
+      '</div>';
+  }
+
+  var milestones = projectOverview.milestones || [];
+  var msHtml = '';
+  if (milestones.length === 0) {
+    msHtml = '<p class="empty"><small>No milestones scheduled yet.</small></p>';
+  } else {
+    msHtml = '<div class="ms">' + milestones.map(function(m) {
+      var dueLabel = (m.status === 'COMPLETED' || m.status === 'DONE') ? 'Done' : (m.due_at ? (H.formatDate ? H.formatDate(m.due_at) : m.due_at.slice(0, 10)) : '—');
+      return '<div><b>' + esc(m.title) + '</b><span>' + esc(dueLabel) + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  var filesHtml = '';
+  if (sharedVersions.length === 0) {
+    filesHtml = '<li class="empty"><small>No shared files yet</small></li>';
+  } else {
+    filesHtml = sharedVersions.map(function(v) {
+      return '<li>' + esc(v.title || 'File') + ' · version ' + esc(v.version_number) + '</li>';
+    }).join('');
+  }
+
+  var updatesHtml = '';
+  if (projectUpdates.length === 0) {
+    updatesHtml = '<li class="empty"><small>No updates posted yet</small></li>';
+  } else {
+    updatesHtml = projectUpdates.map(function(u) {
+      var dateStr = u.created_at ? (H.formatDate ? H.formatDate(u.created_at) : u.created_at.slice(0, 10)) : '';
+      return '<li><time>' + esc(dateStr) + '</time>' + esc(u.body || u.summary) + '</li>';
+    }).join('');
+  }
+
+  mn.innerHTML = '<p style="margin-bottom:10px"><a class="lnk" href="/portal/portal-projects">&larr; Projects</a></p>' +
+    '<h1>' + esc(projectOverview.name) + '</h1>' +
+    '<p class="sub">' + esc(currentOrgName) + ' · ' + statusBadge + '</p>' +
+    askHtml +
+    '<h2>Milestones</h2>' + msHtml +
+    '<div class="grid">' +
+    '<div><h2>Shared files</h2><ul class="act">' + filesHtml + '</ul></div>' +
+    '<div><h2>Latest updates</h2><ul class="act">' + updatesHtml + '</ul></div>' +
+    '</div>';
+}
+
+async function loadData() {
+  if (!activeOrgId || !activeProjectId) return;
+
+  // 1. Fetch portal project overview
+  try {
+    projectOverview = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId);
+  } catch (err) {
+    console.error('Failed to load portal project overview:', err);
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'mn')) return;
+    return;
+  }
+
+  // 2. Fetch open review for this project
+  try {
+    var rRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/reviews?status=OPEN&limit=1');
+    var rItems = rRes.items || (Array.isArray(rRes) ? rRes : []);
+    openReview = rItems.length > 0 ? rItems[0] : null;
+  } catch (_) {}
+
+  // 3. Fetch shared versions
+  try {
+    var vRes = await api.get('/organizations/' + activeOrgId + '/portal/projects/' + activeProjectId + '/versions?limit=10');
+    sharedVersions = vRes.items || (Array.isArray(vRes) ? vRes : []);
+  } catch (_) {}
+
+  // 4. Fetch updates
+  try {
+    var uRes = await api.get('/organizations/' + activeOrgId + '/portal/updates?project_id=' + encodeURIComponent(activeProjectId) + '&limit=5');
+    projectUpdates = uRes.items || (Array.isArray(uRes) ? uRes : []);
+  } catch (_) {}
+
+  // 5. Fetch notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=8');
+    notifications = nRes.items || (Array.isArray(nRes) ? nRes : []);
+    renderNotifications();
+  } catch (_) {}
+
+  render();
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = session.clientPrincipals || [];
+
+  // Populate workspace selector #ws
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(cp) {
+      return '<option value="' + esc(cp.id) + '" data-org="' + esc(cp.organizationId) + '">' + esc(cp.name || 'Workspace') + '</option>';
+    }).join('');
+
+    activePrincipalId = auth.getActivePrincipalId();
+    var found = clientPrincipals.find(function(cp) { return cp.id === activePrincipalId; });
+    if (!found) {
+      found = clientPrincipals[0];
+      auth.setActivePrincipal(found.id, found.organizationId);
+    }
+    activePrincipalId = found.id;
+    activeOrgId = found.organizationId;
+    ws.value = activePrincipalId;
+
+    ws.onchange = function() {
+      var selectedOption = ws.options[ws.selectedIndex];
+      var targetPrincipalId = ws.value;
+      var targetOrgId = selectedOption ? selectedOption.getAttribute('data-org') : null;
+      auth.setActivePrincipal(targetPrincipalId, targetOrgId);
+      activePrincipalId = targetPrincipalId;
+      activeOrgId = targetOrgId;
+      window.location.href = '/portal/portal-projects';
+    };
+  } else {
+    activePrincipalId = auth.getActivePrincipalId();
+    activeOrgId = auth.getActiveOrgId();
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  activeProjectId = params.get('id') || params.get('project');
+
+  // Wire drawer
+  var bell = $('bell');
+  var dr = $('dr');
+  if (bell && dr) {
+    bell.onclick = function() {
+      dr.hidden = !dr.hidden;
+      bell.setAttribute('aria-expanded', String(!dr.hidden));
+    };
+    document.addEventListener('click', function(e) {
+      if (!dr.hidden && !e.target.closest('#dr,#bell')) {
+        dr.hidden = true;
+        bell.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  await loadData();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

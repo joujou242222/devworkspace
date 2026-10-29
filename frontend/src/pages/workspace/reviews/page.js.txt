@@ -1,0 +1,241 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var allReviews = [];
+var projectsMap = {};
+var clientsMap = {};
+var deliverablesMap = {};
+var versionsMap = {};
+
+// Sidebar toggle
+var tog = $('tog');
+if (tog) {
+  tog.onclick = function() {
+    var app = $('app');
+    if (app) app.classList.toggle('min');
+  };
+}
+
+function getStatusBadge(status) {
+  var s = String(status || '').toUpperCase();
+  if (s === 'OPEN') return '<span class="tag">Open</span>';
+  if (s === 'APPROVED') return '<span class="tag">Accepted</span>';
+  if (s === 'CHANGES_REQUESTED') return '<span class="tag no">Changes requested</span>';
+  if (s === 'CANCELLED') return '<span class="tag no">Canceled</span>';
+  if (s === 'SUPERSEDED') return '<span class="tag no">Replaced</span>';
+  return '<span class="tag">' + esc(status || '—') + '</span>';
+}
+
+function isLate(r) {
+  if (r.status !== 'OPEN' || !r.due_at) return false;
+  var d = new Date(r.due_at);
+  return !isNaN(d.getTime()) && d.getTime() < Date.now();
+}
+
+function render() {
+  var fs = $('fs');
+  var fp = $('fp');
+  var fv = $('fv');
+  var tb = $('tb');
+  var em = $('em');
+  var s1 = $('s1');
+  var s2 = $('s2');
+  var s3 = $('s3');
+
+  var statusVal = fs ? fs.value : '';
+  var projectVal = fp ? fp.value : '';
+  var versionVal = fv ? fv.value : '';
+
+  // Calculate top stats cards
+  var openCount = allReviews.filter(function(r) { return r.status === 'OPEN'; }).length;
+  var overdueCount = allReviews.filter(isLate).length;
+  var waitingCount = openCount;
+
+  if (s1) s1.textContent = openCount;
+  if (s2) s2.textContent = overdueCount;
+  if (s3) s3.textContent = waitingCount;
+
+  // Filter reviews
+  var filtered = allReviews.filter(function(r) {
+    if (statusVal && r.status !== statusVal) return false;
+    if (projectVal && r.project_id !== projectVal) return false;
+    if (versionVal) {
+      var vText = versionsMap[r.version_id] ? 'v' + versionsMap[r.version_id].version_number : (r.cycle_number ? 'v' + r.cycle_number : '');
+      if (vText !== versionVal) return false;
+    }
+    return true;
+  });
+
+  if (em) {
+    em.hidden = filtered.length > 0;
+  }
+
+  if (tb) {
+    if (filtered.length === 0) {
+      tb.innerHTML = '';
+      return;
+    }
+
+    tb.innerHTML = filtered.map(function(r) {
+      var del = deliverablesMap[r.deliverable_id];
+      var delTitle = del ? del.title : 'Deliverable';
+      var proj = projectsMap[r.project_id];
+      var projName = proj ? proj.name : 'Project';
+      var client = proj && clientsMap[proj.client_id] ? clientsMap[proj.client_id].name : '—';
+      var vNum = versionsMap[r.version_id] ? versionsMap[r.version_id].version_number : (r.cycle_number || 1);
+      var vText = 'v' + vNum;
+
+      var endsText = '—';
+      if (r.due_at) {
+        var formatted = H && H.formatDate ? H.formatDate(r.due_at) : r.due_at;
+        if (isLate(r)) {
+          endsText = '<span class="late">' + esc(formatted) + ' · late</span>';
+        } else {
+          endsText = esc(formatted);
+        }
+      }
+
+      var btnLabel = r.status === 'OPEN' ? 'Open' : 'Read';
+
+      return '<tr data-id="' + esc(r.id) + '">' +
+        '<td>' + esc(delTitle) + '<br><small style="color:var(--muted)">' + esc(projName) + '</small></td>' +
+        '<td>' + esc(vText) + '</td>' +
+        '<td>' + esc(client) + '</td>' +
+        '<td>' + endsText + '</td>' +
+        '<td>' + getStatusBadge(r.status) + '</td>' +
+        '<td><button class="btn sm" data-open="' + esc(r.id) + '" data-proj="' + esc(r.project_id) + '">' + btnLabel + '</button></td>' +
+        '</tr>';
+    }).join('');
+
+    // Wire open buttons
+    tb.querySelectorAll('button[data-open]').forEach(function(btn) {
+      btn.onclick = function() {
+        var rId = btn.dataset.open;
+        var pId = btn.dataset.proj;
+        var rev = allReviews.find(function(x) { return x.id === rId; });
+        var hash = (rev && rev.status !== 'OPEN') ? '#closed' : '';
+        window.location.href = '/project/project-review?project=' + encodeURIComponent(pId) + '&id=' + encodeURIComponent(rId) + hash;
+      };
+    });
+  }
+}
+
+async function loadData() {
+  if (!activeOrgId) return;
+
+  // 1. Fetch projects
+  try {
+    var pRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/projects') : api.get('/organizations/' + activeOrgId + '/projects?limit=100'));
+    var pList = pRes.items || [];
+    projectsMap = {};
+    pList.forEach(function(p) { projectsMap[p.id] = p; });
+
+    var fp = $('fp');
+    if (fp) {
+      fp.innerHTML = '<option value="">All</option>' +
+        pList.map(function(p) {
+          return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+        }).join('');
+    }
+  } catch (_) {}
+
+  // 2. Fetch clients
+  try {
+    var cRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/clients') : api.get('/organizations/' + activeOrgId + '/clients?limit=100'));
+    var cList = cRes.items || [];
+    clientsMap = {};
+    cList.forEach(function(c) { clientsMap[c.id] = c; });
+  } catch (_) {}
+
+  // 3. Fetch deliverables for all visible projects
+  deliverablesMap = {};
+  versionsMap = {};
+  var pIds = Object.keys(projectsMap);
+  for (var i = 0; i < pIds.length; i++) {
+    var pid = pIds[i];
+    try {
+      var dRes = await api.get('/organizations/' + activeOrgId + '/projects/' + pid + '/deliverables');
+      var dList = Array.isArray(dRes) ? dRes : (dRes.items || []);
+      for (var j = 0; j < dList.length; j++) {
+        var d = dList[j];
+        deliverablesMap[d.id] = d;
+
+        // Fetch versions for deliverable
+        try {
+          var vRes = await api.get('/organizations/' + activeOrgId + '/projects/' + pid + '/deliverables/' + d.id + '/versions');
+          var vList = Array.isArray(vRes) ? vRes : (vRes.items || []);
+          vList.forEach(function(v) { versionsMap[v.id] = v; });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  // 4. Fetch reviews
+  try {
+    var rRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/reviews') : api.get('/organizations/' + activeOrgId + '/reviews?limit=100'));
+    allReviews = rRes.items || [];
+
+    // Populate version select
+    var fv = $('fv');
+    if (fv) {
+      var vSet = {};
+      allReviews.forEach(function(r) {
+        var vText = versionsMap[r.version_id] ? 'v' + versionsMap[r.version_id].version_number : (r.cycle_number ? 'v' + r.cycle_number : '');
+        if (vText) vSet[vText] = true;
+      });
+      var vOptions = Object.keys(vSet).sort();
+      fv.innerHTML = '<option value="">All</option>' +
+        vOptions.map(function(v) {
+          return '<option value="' + esc(v) + '">' + esc(v) + '</option>';
+        }).join('');
+    }
+
+    render();
+  } catch (err) {
+    if (H && H.handlePageAccessError && H.handlePageAccessError(err, 'app')) {
+      return;
+    }
+    console.error('Failed to load reviews:', err);
+  }
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) return;
+
+  if (H && H.loadHeader) {
+    await H.loadHeader();
+  }
+
+  activeOrgId = auth.getActiveOrgId ? auth.getActiveOrgId() : null;
+  if (!activeOrgId && session.principals && session.principals.length > 0) {
+    activeOrgId = session.principals[0].organizationId || session.principals[0].organization_id;
+  }
+  if (!activeOrgId) {
+    var pRes = await api.get('/me/principals');
+    if (pRes && pRes.items && pRes.items.length) {
+      activeOrgId = pRes.items[0].organization_id || pRes.items[0].organizationId;
+    }
+  }
+
+  ['fs', 'fp', 'fv'].forEach(function(id) {
+    var el = $(id);
+    if (el) el.onchange = render;
+  });
+
+  await loadData();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

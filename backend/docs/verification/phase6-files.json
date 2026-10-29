@@ -1,0 +1,1337 @@
+{
+  "summary": {
+    "baselineFiles": 204,
+    "unchanged": 172,
+    "modified": 32,
+    "missing": 0,
+    "added": 20,
+    "priorSqlUnchanged": true,
+    "lockfileDiffOnlyTwoExistingPinnedImporterEntries": true
+  },
+  "files": [
+    {
+      "path": "apps/web/app/account/page.tsx",
+      "status": "unchanged",
+      "before": "20ce2e6b7bc465f7124cb594efbea8986ff355ddf03fae2dabf302ef7724fd56",
+      "after": "20ce2e6b7bc465f7124cb594efbea8986ff355ddf03fae2dabf302ef7724fd56"
+    },
+    {
+      "path": "apps/web/app/auth.ts",
+      "status": "unchanged",
+      "before": "3cb9d2f3c46eddb2402d76b40419fb0f4fb5dc863ffe65968782a25199378800",
+      "after": "3cb9d2f3c46eddb2402d76b40419fb0f4fb5dc863ffe65968782a25199378800"
+    },
+    {
+      "path": "apps/web/app/core.tsx",
+      "status": "modified",
+      "before": "ce0c5cee358ba7c85f47e6a331c04e7a287c86545cd60dfe426bf52a1d3df3db",
+      "after": "b105f89a161e362ce47ceea0bbbca27dfc7d0a8ff38948c09e95a45df1200ff2"
+    },
+    {
+      "path": "apps/web/app/files.tsx",
+      "status": "unchanged",
+      "before": "8c3f8de8ee9e70a99056c55abc73deb2dae3da4b49a8d6d2587cbef7a34329ad",
+      "after": "8c3f8de8ee9e70a99056c55abc73deb2dae3da4b49a8d6d2587cbef7a34329ad"
+    },
+    {
+      "path": "apps/web/app/flows.tsx",
+      "status": "modified",
+      "before": "6ff721bdfb39a4a68c7695c384ea092053c14729567fbffd30a99678adfccc1b",
+      "after": "b8db1d48a837892dcebcc3fba95cab3dda7211c3ffc3c98c8e9a97c7a2c36847"
+    },
+    {
+      "path": "apps/web/app/forgot-password/page.tsx",
+      "status": "unchanged",
+      "before": "1d6853f96c74d6192ee7e8808b2af1cc9f7696b03fefb671e7ed9a72f4dbae85",
+      "after": "1d6853f96c74d6192ee7e8808b2af1cc9f7696b03fefb671e7ed9a72f4dbae85"
+    },
+    {
+      "path": "apps/web/app/foundation/page.tsx",
+      "status": "unchanged",
+      "before": "ce3eec476902cb222d4f3f8016247d0c0edd4f1ac8a56f72c5c6503306dd4574",
+      "after": "ce3eec476902cb222d4f3f8016247d0c0edd4f1ac8a56f72c5c6503306dd4574"
+    },
+    {
+      "path": "apps/web/app/global.css",
+      "status": "unchanged",
+      "before": "d1b7d5678db46b108bea3dbdc52ff4b9313dbe9c4ef42c2bf7f2267467f6a47b",
+      "after": "d1b7d5678db46b108bea3dbdc52ff4b9313dbe9c4ef42c2bf7f2267467f6a47b"
+    },
+    {
+      "path": "apps/web/app/invitations/accept/page.tsx",
+      "status": "unchanged",
+      "before": "74d08ab142af7e0196acd21e9f93dd763f02c9393c79f22495c40a09a283d932",
+      "after": "74d08ab142af7e0196acd21e9f93dd763f02c9393c79f22495c40a09a283d932"
+    },
+    {
+      "path": "apps/web/app/login/page.tsx",
+      "status": "unchanged",
+      "before": "5f948c07f085b597491476339196437a76cf8d162489f557e8784248673fb64a",
+      "after": "5f948c07f085b597491476339196437a76cf8d162489f557e8784248673fb64a"
+    },
+    {
+      "path": "apps/web/app/onboarding/page.tsx",
+      "status": "unchanged",
+      "before": "1e8a10d8308037955f57038709abad2ac4042e6cd6a62c0894adaf5d4b64512c",
+      "after": "1e8a10d8308037955f57038709abad2ac4042e6cd6a62c0894adaf5d4b64512c"
+    },
+    {
+      "path": "apps/web/app/portal/[orgId]/[[...review]]/page.tsx",
+      "status": "unchanged",
+      "before": "56ecbf2392b9e98f4d4c00b68289010a726397ce2030a3f0609c5a1532006bf1",
+      "after": "56ecbf2392b9e98f4d4c00b68289010a726397ce2030a3f0609c5a1532006bf1"
+    },
+    {
+      "path": "apps/web/app/register/page.tsx",
+      "status": "unchanged",
+      "before": "edc93a4490158d57738fe120ba04ba417676ff7b10a8f8a87aa89ae5fa974a49",
+      "after": "edc93a4490158d57738fe120ba04ba417676ff7b10a8f8a87aa89ae5fa974a49"
+    },
+    {
+      "path": "apps/web/app/reset-password/page.tsx",
+      "status": "unchanged",
+      "before": "914e01fd648e5b836eafc9b4c521808ecfd6df5d7f88d05dd34f15239ad5ffc5",
+      "after": "914e01fd648e5b836eafc9b4c521808ecfd6df5d7f88d05dd34f15239ad5ffc5"
+    },
+    {
+      "path": "apps/web/app/reviews.tsx",
+      "status": "modified",
+      "before": "c2dec8dda4741775f488205ef311cb5a37a54d64b14849461ce06f17adf41532",
+      "after": "a307bfecc26c270487e03baf1f36cad104200b752f372b4056f42b3cbf1367bf"
+    },
+    {
+      "path": "apps/web/app/w/[orgId]/[[...core]]/page.tsx",
+      "status": "modified",
+      "before": "3e118c4d2b5c6e7446a57584c42be12d7e3b4d647f568098adcdd5dd97d25812",
+      "after": "2979e6304c2f58981d1f41cea3cfa1a5336a70ab3fc12c5f3a6a6fc87fff1dcf"
+    },
+    {
+      "path": "apps/web/app/w/[orgId]/settings/page.tsx",
+      "status": "unchanged",
+      "before": "7b34370c5f7945c7a7222a604d261bea8cf0cd2dbbbe1511a4c8a6bdf609a158",
+      "after": "7b34370c5f7945c7a7222a604d261bea8cf0cd2dbbbe1511a4c8a6bdf609a158"
+    },
+    {
+      "path": "apps/web/app/w/[orgId]/team/page.tsx",
+      "status": "unchanged",
+      "before": "1c30df63ffb7b68e102954aa38a372c1825f8fdab716b076f8b3a2f594ed43a0",
+      "after": "1c30df63ffb7b68e102954aa38a372c1825f8fdab716b076f8b3a2f594ed43a0"
+    },
+    {
+      "path": "apps/worker/src/files.ts",
+      "status": "unchanged",
+      "before": "450ea43a15b4678c83fc36d94951f3f912b70b73d65ca1d05999e8dc4f2e3318",
+      "after": "450ea43a15b4678c83fc36d94951f3f912b70b73d65ca1d05999e8dc4f2e3318"
+    },
+    {
+      "path": "apps/worker/src/mail.ts",
+      "status": "modified",
+      "before": "ef23cf38a61071ca7ee8ab339966b614d7972221ed078fd99f57221b6a9f7701",
+      "after": "5a4d2d702b676fb9c414c66820ccfc6ec7967ace703b1427a82944f43924a95d"
+    },
+    {
+      "path": "docs/PHASE_1_NATIVE_INFRASTRUCTURE_REPORT.md",
+      "status": "unchanged",
+      "before": "7b74cb500810022f997ad24270aa2f87d6f067f9e4990ebba523e6bac35cdeca",
+      "after": "7b74cb500810022f997ad24270aa2f87d6f067f9e4990ebba523e6bac35cdeca"
+    },
+    {
+      "path": "docs/PHASE_2_REPORT.md",
+      "status": "unchanged",
+      "before": "f66a4d36864b9b9e0ae9fc2da295ff4cb2f6c6d12cd0490f0529a89ca3492477",
+      "after": "f66a4d36864b9b9e0ae9fc2da295ff4cb2f6c6d12cd0490f0529a89ca3492477"
+    },
+    {
+      "path": "docs/PHASE_3_REPORT.md",
+      "status": "unchanged",
+      "before": "fab769bd55191014644b44d63c38bc036b2ee43f771846d85795740a81618434",
+      "after": "fab769bd55191014644b44d63c38bc036b2ee43f771846d85795740a81618434"
+    },
+    {
+      "path": "docs/PHASE_4_REPORT.md",
+      "status": "unchanged",
+      "before": "1f433bb184b22bd9fafa2827a36d097d69ecb66a8e16708f740741b9d37ecb79",
+      "after": "1f433bb184b22bd9fafa2827a36d097d69ecb66a8e16708f740741b9d37ecb79"
+    },
+    {
+      "path": "docs/PHASE_5_REPORT.md",
+      "status": "unchanged",
+      "before": "31a85254ecd0e8eba5c30b11311f8432ae363a0df1e3547dcfd97d0a98adfad6",
+      "after": "31a85254ecd0e8eba5c30b11311f8432ae363a0df1e3547dcfd97d0a98adfad6"
+    },
+    {
+      "path": "docs/traceability/FEATURE_MATRIX.md",
+      "status": "modified",
+      "before": "e59dea2c804ad825c5fce475ec4a1cc1e1e330458fcdf2d6128a3e3c094f25ee",
+      "after": "66dfbb5248e70e971a306952d2dd2ceff49c1f3e13c4786d66514dcb48a5999a"
+    },
+    {
+      "path": "docs/verification/phase2-final.txt",
+      "status": "unchanged",
+      "before": "d7d4386d0b5ba9035f4f378f81bb7d5b4ee51b0610d67303a8aeb319561f8328",
+      "after": "d7d4386d0b5ba9035f4f378f81bb7d5b4ee51b0610d67303a8aeb319561f8328"
+    },
+    {
+      "path": "docs/verification/phase3-files.json",
+      "status": "unchanged",
+      "before": "ba95274ad173f1885cce7ac65bd74a011604a629788715bde56aa2c5ac620c70",
+      "after": "ba95274ad173f1885cce7ac65bd74a011604a629788715bde56aa2c5ac620c70"
+    },
+    {
+      "path": "docs/verification/phase3-final.txt",
+      "status": "unchanged",
+      "before": "cdc6d2824ec588591dab556ee2255261e362f928fc9227a0f9b2a40226c3f56d",
+      "after": "cdc6d2824ec588591dab556ee2255261e362f928fc9227a0f9b2a40226c3f56d"
+    },
+    {
+      "path": "docs/verification/phase4-files.json",
+      "status": "unchanged",
+      "before": "fd81a283252f0c94c4aacc1fe6a457dc2df870cad3068eaeee43235c704a4305",
+      "after": "fd81a283252f0c94c4aacc1fe6a457dc2df870cad3068eaeee43235c704a4305"
+    },
+    {
+      "path": "docs/verification/phase4-final.txt",
+      "status": "unchanged",
+      "before": "a632104faa62fd8efbd17389627dcd3fca8d9ab9ac84bb49b60e5e1e3e49c73f",
+      "after": "a632104faa62fd8efbd17389627dcd3fca8d9ab9ac84bb49b60e5e1e3e49c73f"
+    },
+    {
+      "path": "docs/verification/phase5-files.json",
+      "status": "unchanged",
+      "before": "5582d1c392d7a9b5d97aa54325f7edf82735421c8da95442b61ca34323151eef",
+      "after": "5582d1c392d7a9b5d97aa54325f7edf82735421c8da95442b61ca34323151eef"
+    },
+    {
+      "path": "docs/verification/phase5-final.txt",
+      "status": "unchanged",
+      "before": "6db78a5db70cdfe23953dd41764c21a76ee88dc4bf047026a1bd52ce65eb7426",
+      "after": "6db78a5db70cdfe23953dd41764c21a76ee88dc4bf047026a1bd52ce65eb7426"
+    },
+    {
+      "path": "infra/native-master.toml",
+      "status": "unchanged",
+      "before": "08265b389b50c554af8705f3a788c12d9fb1ad71ca0bfae9a6c576633ef0943c",
+      "after": "08265b389b50c554af8705f3a788c12d9fb1ad71ca0bfae9a6c576633ef0943c"
+    },
+    {
+      "path": "infra/native-tools.json",
+      "status": "unchanged",
+      "before": "6b2e98408cb1e9fd0b83157a2eba466eba9276d25a958b6091eeb1ace0084359",
+      "after": "6b2e98408cb1e9fd0b83157a2eba466eba9276d25a958b6091eeb1ace0084359"
+    },
+    {
+      "path": "infra/processing-tools.json",
+      "status": "unchanged",
+      "before": "3f9640cc45ce2a9d10feaf05e6ca79f58d32c4e5589cb4808582eece045710a4",
+      "after": "3f9640cc45ce2a9d10feaf05e6ca79f58d32c4e5589cb4808582eece045710a4"
+    },
+    {
+      "path": "packages/contracts/src/client.generated.ts",
+      "status": "modified",
+      "before": "3065340dd8288f4167444bcbe0bf0027a39e5e2fd3ac67cde52222e860e85f5b",
+      "after": "66face0b2922c47d7bd6af2a81c93a922c7f103dd430f3a4c1333ffe0433f8cd"
+    },
+    {
+      "path": "packages/contracts/src/operations.ts",
+      "status": "modified",
+      "before": "ad52307aa6d3907fc160c234f8bf18e4096ef1758b67814302cfdcd617f27dc3",
+      "after": "0ae634e17422710359211ffe7cd1dc9895611b8faecd9556e4cd861da1ef4ad0"
+    },
+    {
+      "path": "packages/contracts/src/phase2.ts",
+      "status": "modified",
+      "before": "b2bdd6e857fafef2c96cd7cc502ad04347e3c0ea96d85e84c72f03866aaa0207",
+      "after": "0ea1d261753acf7749fa4d792d161adcdcff6f9ace0019f80974913bac6c3074"
+    },
+    {
+      "path": "packages/contracts/src/phase3.ts",
+      "status": "modified",
+      "before": "3b98a4a40f701acc71a96d96e8de1f7bc83c0dc4955f26b61c0e66d0a5a4f92f",
+      "after": "2fb5e0bb1281f81797aa1a57b20846efc668b3df82439c830684abe94728273b"
+    },
+    {
+      "path": "packages/contracts/src/phase4.ts",
+      "status": "unchanged",
+      "before": "a973d5503f3c07ef15ae2e074e14365430a98786934352ee7992c4642e2fb300",
+      "after": "a973d5503f3c07ef15ae2e074e14365430a98786934352ee7992c4642e2fb300"
+    },
+    {
+      "path": "packages/contracts/src/phase5.ts",
+      "status": "unchanged",
+      "before": "566526dd87f10e450d36e33cf01a25c7b1c19562a54ceaaa841414c9ba21f079",
+      "after": "566526dd87f10e450d36e33cf01a25c7b1c19562a54ceaaa841414c9ba21f079"
+    },
+    {
+      "path": "packages/database/prisma.product.config.ts",
+      "status": "unchanged",
+      "before": "a0fc4f3d52ee7a34b46b0626bc3a9d051ef70ed505375751bea0f55cf5c06c18",
+      "after": "a0fc4f3d52ee7a34b46b0626bc3a9d051ef70ed505375751bea0f55cf5c06c18"
+    },
+    {
+      "path": "packages/database/prisma/product/0001-generated.sql",
+      "status": "unchanged",
+      "before": "48c5bc61457d0b795bce8de03405d14abc9fc1fefbd4b9d91d23212df3afdf07",
+      "after": "48c5bc61457d0b795bce8de03405d14abc9fc1fefbd4b9d91d23212df3afdf07"
+    },
+    {
+      "path": "packages/database/prisma/product/0002-security.sql",
+      "status": "unchanged",
+      "before": "7b0eb7485ad7099eac6ff408d14df13c8007efbc0a21af2b21e7a06fe68790a1",
+      "after": "7b0eb7485ad7099eac6ff408d14df13c8007efbc0a21af2b21e7a06fe68790a1"
+    },
+    {
+      "path": "packages/database/prisma/product/0003-hardening.sql",
+      "status": "unchanged",
+      "before": "93965e7c2893243ebba64c1af8de8be2308dff9088fe385b02863ac6a90b0eac",
+      "after": "93965e7c2893243ebba64c1af8de8be2308dff9088fe385b02863ac6a90b0eac"
+    },
+    {
+      "path": "packages/database/prisma/product/0004-privilege-revocation.sql",
+      "status": "unchanged",
+      "before": "d9a00944adfab39e367ea6a404a67921894e6a0c741bee4d24027a91afbbe464",
+      "after": "d9a00944adfab39e367ea6a404a67921894e6a0c741bee4d24027a91afbbe464"
+    },
+    {
+      "path": "packages/database/prisma/product/0005-identity-eligibility.sql",
+      "status": "unchanged",
+      "before": "56d3553d623ace5e2729bb50b59bdcface9248a4d8eca419fecd67f3df33adb5",
+      "after": "56d3553d623ace5e2729bb50b59bdcface9248a4d8eca419fecd67f3df33adb5"
+    },
+    {
+      "path": "packages/database/prisma/product/0006-integrity.sql",
+      "status": "unchanged",
+      "before": "79544c8e893c24af81ee1d521ff4aee390f5ec9cc08eeda40f3ddd75bfcca4ae",
+      "after": "79544c8e893c24af81ee1d521ff4aee390f5ec9cc08eeda40f3ddd75bfcca4ae"
+    },
+    {
+      "path": "packages/database/prisma/product/0007-scope-errors.sql",
+      "status": "unchanged",
+      "before": "d845bd72bc9bfd86784055a62e96b773c3d90eed42b169038c5b6764bf64cfc7",
+      "after": "d845bd72bc9bfd86784055a62e96b773c3d90eed42b169038c5b6764bf64cfc7"
+    },
+    {
+      "path": "packages/database/prisma/product/0008-delivery-replay.sql",
+      "status": "unchanged",
+      "before": "977cf8590806b814f999ad6a6695050433a0a4557f887de1bb7228359f85f944",
+      "after": "977cf8590806b814f999ad6a6695050433a0a4557f887de1bb7228359f85f944"
+    },
+    {
+      "path": "packages/database/prisma/product/0009-principal-pagination.sql",
+      "status": "unchanged",
+      "before": "dea8f435e4d588914b5c6ca2ebe767c0b3fb8ea73d954226546b2663013fd7e3",
+      "after": "dea8f435e4d588914b5c6ca2ebe767c0b3fb8ea73d954226546b2663013fd7e3"
+    },
+    {
+      "path": "packages/database/prisma/product/0010-core.sql",
+      "status": "unchanged",
+      "before": "150631f0dcfb93aab1794a93870d93cf6316951f13fc1cf07ebf32e71aa4ed05",
+      "after": "150631f0dcfb93aab1794a93870d93cf6316951f13fc1cf07ebf32e71aa4ed05"
+    },
+    {
+      "path": "packages/database/prisma/product/0011-client-access.sql",
+      "status": "unchanged",
+      "before": "17a705828ac40656c9a9459e16938e2434533f37a1df84fa2df7b6a45d9308bd",
+      "after": "17a705828ac40656c9a9459e16938e2434533f37a1df84fa2df7b6a45d9308bd"
+    },
+    {
+      "path": "packages/database/prisma/product/0012-core-bindings.sql",
+      "status": "unchanged",
+      "before": "d591c876dfcc7e02c47502fc6a3371d00cedce124e946715cf4280a9a22a87cf",
+      "after": "d591c876dfcc7e02c47502fc6a3371d00cedce124e946715cf4280a9a22a87cf"
+    },
+    {
+      "path": "packages/database/prisma/product/0013-files.sql",
+      "status": "unchanged",
+      "before": "d96cc70bd68bc7dbcbbe9a1b489533dbf6230f3bb6d8fd74435b9b4fb1cc1e58",
+      "after": "d96cc70bd68bc7dbcbbe9a1b489533dbf6230f3bb6d8fd74435b9b4fb1cc1e58"
+    },
+    {
+      "path": "packages/database/prisma/product/0014-file-processing.sql",
+      "status": "unchanged",
+      "before": "b39bdd08e2d435ef7ec8e690c358c31d1d21c90529d8b64e9e46ae3b7f1d2361",
+      "after": "b39bdd08e2d435ef7ec8e690c358c31d1d21c90529d8b64e9e46ae3b7f1d2361"
+    },
+    {
+      "path": "packages/database/prisma/product/0015-media.sql",
+      "status": "unchanged",
+      "before": "8e27e67a7d1392ffca0893bac77c4d270d1ff48a59d97a8971c0c58f39f9b318",
+      "after": "8e27e67a7d1392ffca0893bac77c4d270d1ff48a59d97a8971c0c58f39f9b318"
+    },
+    {
+      "path": "packages/database/prisma/product/0016-file-integrity.sql",
+      "status": "unchanged",
+      "before": "6bc26d0a39211a6d384c0972c8d67ebaa233f1fdfc7c12fe14cc5c9bb06c174e",
+      "after": "6bc26d0a39211a6d384c0972c8d67ebaa233f1fdfc7c12fe14cc5c9bb06c174e"
+    },
+    {
+      "path": "packages/database/prisma/product/0017-staging-cleanup.sql",
+      "status": "unchanged",
+      "before": "f42126095de4f530d338de056a0441e7b259d75bf0f7044ec591d44d825c0d68",
+      "after": "f42126095de4f530d338de056a0441e7b259d75bf0f7044ec591d44d825c0d68"
+    },
+    {
+      "path": "packages/database/prisma/product/0018-processing-evidence.sql",
+      "status": "unchanged",
+      "before": "4d2e7cff407409f3c51912da7b1e89106e6e4e7f1f38adba2a7400391390672f",
+      "after": "4d2e7cff407409f3c51912da7b1e89106e6e4e7f1f38adba2a7400391390672f"
+    },
+    {
+      "path": "packages/database/prisma/product/0019-profile-audit.sql",
+      "status": "unchanged",
+      "before": "75a31a8bfa7208ab81f7368b32cbb87c1ead8f782722c034493c00cfdab4c18d",
+      "after": "75a31a8bfa7208ab81f7368b32cbb87c1ead8f782722c034493c00cfdab4c18d"
+    },
+    {
+      "path": "packages/database/prisma/product/0020-terminal-staging-cleanup.sql",
+      "status": "unchanged",
+      "before": "ece6b50fbf0ba3f530ae80617a8d84eda53a694d38c806bb22bd44c858a64743",
+      "after": "ece6b50fbf0ba3f530ae80617a8d84eda53a694d38c806bb22bd44c858a64743"
+    },
+    {
+      "path": "packages/database/prisma/product/0021-reviews.sql",
+      "status": "unchanged",
+      "before": "d3b8aba15a7c7367a88496678c4a30b779f57cd4724fe06999f759f2ec2e0cfd",
+      "after": "d3b8aba15a7c7367a88496678c4a30b779f57cd4724fe06999f759f2ec2e0cfd"
+    },
+    {
+      "path": "packages/database/prisma/product/0022-review-invariants.sql",
+      "status": "unchanged",
+      "before": "a28ca919e4194ca4cda6b60d9be3010962fec10def9c55da2a625603f76c9b90",
+      "after": "a28ca919e4194ca4cda6b60d9be3010962fec10def9c55da2a625603f76c9b90"
+    },
+    {
+      "path": "packages/database/prisma/product/0023-review-events.sql",
+      "status": "unchanged",
+      "before": "7fbf1ee6fcb51d6f3f3d3d2ef44c9bff68d8e82c235179095fecab1dd624235e",
+      "after": "7fbf1ee6fcb51d6f3f3d3d2ef44c9bff68d8e82c235179095fecab1dd624235e"
+    },
+    {
+      "path": "packages/database/prisma/product/0024-client-review-eligibility.sql",
+      "status": "unchanged",
+      "before": "c759ab27f74a3188be15883e8cd52f9e0477e3f0b759dfa241c39d07311e03cf",
+      "after": "c759ab27f74a3188be15883e8cd52f9e0477e3f0b759dfa241c39d07311e03cf"
+    },
+    {
+      "path": "packages/database/prisma/product/0025-review-history-guards.sql",
+      "status": "unchanged",
+      "before": "319f816daf03a685b114a0f00e9c44e5a197f46741886949249089521c35c87a",
+      "after": "319f816daf03a685b114a0f00e9c44e5a197f46741886949249089521c35c87a"
+    },
+    {
+      "path": "packages/database/prisma/product/0026-annotation-type.sql",
+      "status": "unchanged",
+      "before": "0a9fdab761dc1b5dbfb58caec416bd417836fb438682abbaaac3e31a4ef2a192",
+      "after": "0a9fdab761dc1b5dbfb58caec416bd417836fb438682abbaaac3e31a4ef2a192"
+    },
+    {
+      "path": "packages/database/prisma/product/0027-review-resource-lifecycle.sql",
+      "status": "unchanged",
+      "before": "08b19782b1e37712ae7b6b75ee8631b663bf16f8599625fc3ede8bed79bcf99e",
+      "after": "08b19782b1e37712ae7b6b75ee8631b663bf16f8599625fc3ede8bed79bcf99e"
+    },
+    {
+      "path": "packages/database/prisma/product/schema.prisma",
+      "status": "unchanged",
+      "before": "e8b229486204cc2534393df2cc439657d2ef7dd1608a9eef834649ef5a745396",
+      "after": "e8b229486204cc2534393df2cc439657d2ef7dd1608a9eef834649ef5a745396"
+    },
+    {
+      "path": "packages/database/src/product.ts",
+      "status": "unchanged",
+      "before": "1aee7a6016d1fb42d8db9380817303a3e7eb89357c4f3c1080a1b17b71f242fc",
+      "after": "1aee7a6016d1fb42d8db9380817303a3e7eb89357c4f3c1080a1b17b71f242fc"
+    },
+    {
+      "path": "packages/server/src/client-access.ts",
+      "status": "unchanged",
+      "before": "66f46d05a974812e34164975f4a87a0fd245125a6a7da498208415b93615cfda",
+      "after": "66f46d05a974812e34164975f4a87a0fd245125a6a7da498208415b93615cfda"
+    },
+    {
+      "path": "packages/server/src/core.ts",
+      "status": "unchanged",
+      "before": "be81b30e596f00aab3cc811e9f238b190af310032a7a5c72cea437b0a876bc99",
+      "after": "be81b30e596f00aab3cc811e9f238b190af310032a7a5c72cea437b0a876bc99"
+    },
+    {
+      "path": "packages/server/src/files.ts",
+      "status": "modified",
+      "before": "5f49b777e39a03d4d5e976db59fe4f839b39c5b85a5b7c6641e3b805aa670134",
+      "after": "8377f9fff671828643517e664f9d509fcb959f07538854ecf5ede9104b1a6a04"
+    },
+    {
+      "path": "packages/server/src/identity.ts",
+      "status": "unchanged",
+      "before": "9492280e756f395bbf49b4c13e738e9f3b4ca37e14e62191944d3f6452db7d61",
+      "after": "9492280e756f395bbf49b4c13e738e9f3b4ca37e14e62191944d3f6452db7d61"
+    },
+    {
+      "path": "packages/server/src/media.ts",
+      "status": "unchanged",
+      "before": "df67b57449355a6ef27f358d0c791218d2d86d590770e7cd042930cfb95e9e51",
+      "after": "df67b57449355a6ef27f358d0c791218d2d86d590770e7cd042930cfb95e9e51"
+    },
+    {
+      "path": "packages/server/src/organizations.ts",
+      "status": "modified",
+      "before": "3a20b6843e041380689dc4a2f794a27008eae3c71ccd18eca96176008e4b78ef",
+      "after": "af0ca9c26eae1fb26a47f1a9c076fd16000957fc3167ce90e17b16ddf85de589"
+    },
+    {
+      "path": "packages/server/src/processing.ts",
+      "status": "unchanged",
+      "before": "c487741d426d6925f4b87866aac4d8c8e55995cb8946d1efa1b046ddc53012e0",
+      "after": "c487741d426d6925f4b87866aac4d8c8e55995cb8946d1efa1b046ddc53012e0"
+    },
+    {
+      "path": "packages/server/src/product.ts",
+      "status": "modified",
+      "before": "1500b8fa45a5454d0b8304a1fa960c1da42cd1443c6aa2ba072ad01a3114f7b0",
+      "after": "b80a2415bf4d6fa6d745695b3a0ccf710ff65ec1deb22b43f72db3e1792852c1"
+    },
+    {
+      "path": "packages/server/src/reviews.ts",
+      "status": "unchanged",
+      "before": "8200d9d176db2affff8e2878dbb8804935d363bf43777e0810c40fee24c74a5c",
+      "after": "8200d9d176db2affff8e2878dbb8804935d363bf43777e0810c40fee24c74a5c"
+    },
+    {
+      "path": "packages/server/src/security.ts",
+      "status": "unchanged",
+      "before": "aa35015057a0b4e6839a738014324efa55e4008e00d67e28d207dede5aa6134c",
+      "after": "aa35015057a0b4e6839a738014324efa55e4008e00d67e28d207dede5aa6134c"
+    },
+    {
+      "path": "packages/server/src/smtp.ts",
+      "status": "unchanged",
+      "before": "d185fc7d9cc10ec95aeaf73f24c504a0869c6f1c3e6eee7e2e632b1253a5f874",
+      "after": "d185fc7d9cc10ec95aeaf73f24c504a0869c6f1c3e6eee7e2e632b1253a5f874"
+    },
+    {
+      "path": "packages/server/src/staging-cleanup.ts",
+      "status": "unchanged",
+      "before": "df5f2388a1f2545caefded9b7e282f4206fd5b1667405696686028462e8c22ac",
+      "after": "df5f2388a1f2545caefded9b7e282f4206fd5b1667405696686028462e8c22ac"
+    },
+    {
+      "path": "packages/server/src/storage.ts",
+      "status": "unchanged",
+      "before": "765fafc7ac9dbcabe89b60b7074227f308924ada3c3e165e577d1c87c0c97523",
+      "after": "765fafc7ac9dbcabe89b60b7074227f308924ada3c3e165e577d1c87c0c97523"
+    },
+    {
+      "path": "scripts/file-processor.mjs",
+      "status": "unchanged",
+      "before": "f73d67a6159bbdfc0efa0986ccdf58040ae03bd5e49becdb25c629d5bb743602",
+      "after": "f73d67a6159bbdfc0efa0986ccdf58040ae03bd5e49becdb25c629d5bb743602"
+    },
+    {
+      "path": "scripts/native-infra.mjs",
+      "status": "unchanged",
+      "before": "6477be1c683bc192faffaa7e1f2679bb1e14f8b66b1d868cce3e0adf363b9777",
+      "after": "6477be1c683bc192faffaa7e1f2679bb1e14f8b66b1d868cce3e0adf363b9777"
+    },
+    {
+      "path": "scripts/native-process.ps1",
+      "status": "unchanged",
+      "before": "e71a2c5e0b97e592c2076a45d77d30e546033909016bd64844e3fe920e7ca679",
+      "after": "e71a2c5e0b97e592c2076a45d77d30e546033909016bd64844e3fe920e7ca679"
+    },
+    {
+      "path": "scripts/native-readiness.mjs",
+      "status": "unchanged",
+      "before": "e163d6082314a35b1a55e2a71b895e657baacb9a59925dfbf3260f8dfc8444c5",
+      "after": "e163d6082314a35b1a55e2a71b895e657baacb9a59925dfbf3260f8dfc8444c5"
+    },
+    {
+      "path": "scripts/phase2-mail-retry.mjs",
+      "status": "unchanged",
+      "before": "80367471a4e312a8702aa7e3478ed25e914b08780a0b2191cd5de625c764cdb6",
+      "after": "80367471a4e312a8702aa7e3478ed25e914b08780a0b2191cd5de625c764cdb6"
+    },
+    {
+      "path": "scripts/phase2-mail-status.mjs",
+      "status": "unchanged",
+      "before": "852fc978fa7e9651d93f64e47681b60882fd84bae31dc719e85b376a65d637e4",
+      "after": "852fc978fa7e9651d93f64e47681b60882fd84bae31dc719e85b376a65d637e4"
+    },
+    {
+      "path": "scripts/prepare-phase2.mjs",
+      "status": "modified",
+      "before": "9976c3ff5021911b20332c3ebef938b656baca078bbe27ef98afd9c78780bd83",
+      "after": "8e6f515e31b044754a154420232ddd8a57d38a697506f3f46b07b762faf20ada"
+    },
+    {
+      "path": "scripts/prepare-phase4-storage.mjs",
+      "status": "unchanged",
+      "before": "d43e2f0a53e3fa3d26073477a714bd0ff11913737bd78c4df5223f11dbccdf12",
+      "after": "d43e2f0a53e3fa3d26073477a714bd0ff11913737bd78c4df5223f11dbccdf12"
+    },
+    {
+      "path": "scripts/prepare-processing.mjs",
+      "status": "unchanged",
+      "before": "6989a99968d5de49c81504f0d0e7629ef8b2a41c633bc45ddc43c884ac1c21e0",
+      "after": "6989a99968d5de49c81504f0d0e7629ef8b2a41c633bc45ddc43c884ac1c21e0"
+    },
+    {
+      "path": "scripts/processing-sandbox.cs",
+      "status": "unchanged",
+      "before": "52a9cee323d113eb12962131f1ead0b89682c921968f88c850fda476de40fc77",
+      "after": "52a9cee323d113eb12962131f1ead0b89682c921968f88c850fda476de40fc77"
+    },
+    {
+      "path": "scripts/processing-sandbox.ps1",
+      "status": "unchanged",
+      "before": "cff6614826d6483eef21784eb855aeddfcc7c54c8dec58d0d2cf29f2d99a711f",
+      "after": "cff6614826d6483eef21784eb855aeddfcc7c54c8dec58d0d2cf29f2d99a711f"
+    },
+    {
+      "path": "scripts/provision-phase4-storage.mjs",
+      "status": "unchanged",
+      "before": "9ab1be44dd7b628a2389177a50a5b08bec28c493cd968ec1e229e04dee271ba9",
+      "after": "9ab1be44dd7b628a2389177a50a5b08bec28c493cd968ec1e229e04dee271ba9"
+    },
+    {
+      "path": "scripts/sandbox-probe.cjs",
+      "status": "unchanged",
+      "before": "749f5fe6a4ec46bde5e247d0deaa41e06a1f27f2d9bd831093b4a533846c255c",
+      "after": "749f5fe6a4ec46bde5e247d0deaa41e06a1f27f2d9bd831093b4a533846c255c"
+    },
+    {
+      "path": "scripts/setup-native.mjs",
+      "status": "unchanged",
+      "before": "1d36fc5f6aae8befa726dfc18f5a377888fecdc01577e271b316c389fc366772",
+      "after": "1d36fc5f6aae8befa726dfc18f5a377888fecdc01577e271b316c389fc366772"
+    },
+    {
+      "path": "tests/e2e/phase2.spec.ts",
+      "status": "unchanged",
+      "before": "1fd35d047d2b09a9ed09de488360f3e8583977791c6c21d6b1e82809e2904ba6",
+      "after": "1fd35d047d2b09a9ed09de488360f3e8583977791c6c21d6b1e82809e2904ba6"
+    },
+    {
+      "path": "tests/e2e/phase3.spec.ts",
+      "status": "unchanged",
+      "before": "c032dfe13c753b4d316009b88cfa4e16ad2c547f76d12a807ad3a07615cbf7ca",
+      "after": "c032dfe13c753b4d316009b88cfa4e16ad2c547f76d12a807ad3a07615cbf7ca"
+    },
+    {
+      "path": "tests/e2e/phase4.spec.ts",
+      "status": "unchanged",
+      "before": "95ad08225ea0fb1786b2d94d4b5f08cfe9a7c16d39d687876ec38248cf88a25b",
+      "after": "95ad08225ea0fb1786b2d94d4b5f08cfe9a7c16d39d687876ec38248cf88a25b"
+    },
+    {
+      "path": "tests/e2e/phase5.spec.ts",
+      "status": "unchanged",
+      "before": "ba3b0aefa07f75310243f3c2a853da3a9c81488be9d7e16a3e6b50d6715e83a6",
+      "after": "ba3b0aefa07f75310243f3c2a853da3a9c81488be9d7e16a3e6b50d6715e83a6"
+    },
+    {
+      "path": "tests/native/infrastructure.test.mjs",
+      "status": "unchanged",
+      "before": "a121009814f7a3dba502d4b05d115394646906cee56999bbfae5ca4bc1e737b1",
+      "after": "a121009814f7a3dba502d4b05d115394646906cee56999bbfae5ca4bc1e737b1"
+    },
+    {
+      "path": "tests/native/protocols.mjs",
+      "status": "unchanged",
+      "before": "cdf1eabccfebba559f864024015aa74c6448220c85876124f983ff7c5de091c5",
+      "after": "cdf1eabccfebba559f864024015aa74c6448220c85876124f983ff7c5de091c5"
+    },
+    {
+      "path": "tests/phase2/contracts.mjs",
+      "status": "unchanged",
+      "before": "96941b64e982ad7fa05e63fdfe6955327841285de0e7b38bb2b1f7394915b311",
+      "after": "96941b64e982ad7fa05e63fdfe6955327841285de0e7b38bb2b1f7394915b311"
+    },
+    {
+      "path": "tests/phase2/database.test.mjs",
+      "status": "unchanged",
+      "before": "dbf2221aed2843cddcfe4e2267a93108055893f96c3cb99862beefa5595eeef8",
+      "after": "dbf2221aed2843cddcfe4e2267a93108055893f96c3cb99862beefa5595eeef8"
+    },
+    {
+      "path": "tests/phase2/helpers.mjs",
+      "status": "unchanged",
+      "before": "d6306616f63ae77736270ed0071b4f9c33b7a831b37e493c76047c8e173f6a86",
+      "after": "d6306616f63ae77736270ed0071b4f9c33b7a831b37e493c76047c8e173f6a86"
+    },
+    {
+      "path": "tests/phase2/identity.test.mjs",
+      "status": "unchanged",
+      "before": "cb2e349c658fd798612ac2b4c97ff322213c58ca813539c23ae7b82e0ec99b53",
+      "after": "cb2e349c658fd798612ac2b4c97ff322213c58ca813539c23ae7b82e0ec99b53"
+    },
+    {
+      "path": "tests/phase2/reliability.test.mjs",
+      "status": "unchanged",
+      "before": "0138da86e2a48f1e08773ca46094efa880173f10c06b181a05a5a46ad5e93bd6",
+      "after": "0138da86e2a48f1e08773ca46094efa880173f10c06b181a05a5a46ad5e93bd6"
+    },
+    {
+      "path": "tests/phase2/tenancy.test.mjs",
+      "status": "unchanged",
+      "before": "b3a38f6ef0407929cf55a861cb11b768a44252966ac1780ddbcb49aa9d53e0cf",
+      "after": "b3a38f6ef0407929cf55a861cb11b768a44252966ac1780ddbcb49aa9d53e0cf"
+    },
+    {
+      "path": "tests/phase3/core.test.mjs",
+      "status": "unchanged",
+      "before": "491468a747cea7cc029a7f989769cfc70c6a220f6d0e8f0948a866a027ba7a81",
+      "after": "491468a747cea7cc029a7f989769cfc70c6a220f6d0e8f0948a866a027ba7a81"
+    },
+    {
+      "path": "tests/phase4/api.test.mjs",
+      "status": "unchanged",
+      "before": "4c814d2453854883cfd80b5440d86693e09bba32f93e20e763bf8dcfa869a95d",
+      "after": "4c814d2453854883cfd80b5440d86693e09bba32f93e20e763bf8dcfa869a95d"
+    },
+    {
+      "path": "tests/phase4/fixtures.mjs",
+      "status": "unchanged",
+      "before": "7f81e10be42bab3acd50eb34a518a1d3c3209176e77b29152dcf30c4ac20ef36",
+      "after": "7f81e10be42bab3acd50eb34a518a1d3c3209176e77b29152dcf30c4ac20ef36"
+    },
+    {
+      "path": "tests/phase4/sandbox.test.mjs",
+      "status": "unchanged",
+      "before": "c8e9f091a388651ce84a2755b1146f439e41e690ca9abb1bdb05835332bc0539",
+      "after": "c8e9f091a388651ce84a2755b1146f439e41e690ca9abb1bdb05835332bc0539"
+    },
+    {
+      "path": "tests/phase5/reviews.test.mjs",
+      "status": "unchanged",
+      "before": "79275dc59e932fb3761fc044cf19550e20ff44050cc0894757e081ff1d5617e2",
+      "after": "79275dc59e932fb3761fc044cf19550e20ff44050cc0894757e081ff1d5617e2"
+    },
+    {
+      "path": "tests/phase5/rollback.test.mjs",
+      "status": "unchanged",
+      "before": "07311fbef3d56794903babd33c93d63770859962467e7c64a197d9a5e6d506a5",
+      "after": "07311fbef3d56794903babd33c93d63770859962467e7c64a197d9a5e6d506a5"
+    },
+    {
+      "path": "tests/phase5/security.test.mjs",
+      "status": "unchanged",
+      "before": "1fce008e51d01a88d59c59ead63f5b2296c3c070c2f324368e61682ca32f184a",
+      "after": "1fce008e51d01a88d59c59ead63f5b2296c3c070c2f324368e61682ca32f184a"
+    },
+    {
+      "path": "tests/phase5/zz-lifecycle.test.mjs",
+      "status": "unchanged",
+      "before": "3edfeb13084b136373862d34f48dcea1f576f036cb20347ec450f93fbd0c1c8b",
+      "after": "3edfeb13084b136373862d34f48dcea1f576f036cb20347ec450f93fbd0c1c8b"
+    },
+    {
+      "path": "tests/unit/native-readiness.test.mjs",
+      "status": "unchanged",
+      "before": "1cf90b3d7134523807b7dd262e52667758fdba0311153fd0b1c0caddbf107fad",
+      "after": "1cf90b3d7134523807b7dd262e52667758fdba0311153fd0b1c0caddbf107fad"
+    },
+    {
+      "path": "tests/unit/phase2.test.mjs",
+      "status": "unchanged",
+      "before": "39441701ee138a4eae1d9931c538294b8a34f30a63486dc72c4b75d6ceaba509",
+      "after": "39441701ee138a4eae1d9931c538294b8a34f30a63486dc72c4b75d6ceaba509"
+    },
+    {
+      "path": "tests/unit/phase3.test.mjs",
+      "status": "unchanged",
+      "before": "8a3f6e5d0737370ea695748272d71a151996f88505e1561c79542ae31d1b4d57",
+      "after": "8a3f6e5d0737370ea695748272d71a151996f88505e1561c79542ae31d1b4d57"
+    },
+    {
+      "path": "tests/unit/phase5.test.mjs",
+      "status": "unchanged",
+      "before": "78943bd4e88bdb3153f54c8fdf2989c3518a2169b1972864328c7b68d5f57baf",
+      "after": "78943bd4e88bdb3153f54c8fdf2989c3518a2169b1972864328c7b68d5f57baf"
+    },
+    {
+      "path": ".dockerignore",
+      "status": "unchanged",
+      "before": "8b9b1ce2028cfc4a4625977d9c292be5337410fd4def238ff0b8ef896cfd2170",
+      "after": "8b9b1ce2028cfc4a4625977d9c292be5337410fd4def238ff0b8ef896cfd2170"
+    },
+    {
+      "path": ".env.example",
+      "status": "unchanged",
+      "before": "c7abb71f69b3d32b13122b26eb98ddad19151c2207a818466b77cee959561b9c",
+      "after": "c7abb71f69b3d32b13122b26eb98ddad19151c2207a818466b77cee959561b9c"
+    },
+    {
+      "path": ".gitattributes",
+      "status": "unchanged",
+      "before": "8d75fbed0329d55480242ea79c61cbdd3da312c700298bfba9572b81ec325cc6",
+      "after": "8d75fbed0329d55480242ea79c61cbdd3da312c700298bfba9572b81ec325cc6"
+    },
+    {
+      "path": ".gitignore",
+      "status": "unchanged",
+      "before": "68ce260f8c692d8207a23eb17b31bfae0b71d3e4d5781fb669efe02e646e2c8d",
+      "after": "68ce260f8c692d8207a23eb17b31bfae0b71d3e4d5781fb669efe02e646e2c8d"
+    },
+    {
+      "path": ".node-version",
+      "status": "unchanged",
+      "before": "75daa0bc10dae1f22b2d13386b55b232adf16930d4325902f37b5033b3a7ca93",
+      "after": "75daa0bc10dae1f22b2d13386b55b232adf16930d4325902f37b5033b3a7ca93"
+    },
+    {
+      "path": ".npmrc",
+      "status": "unchanged",
+      "before": "06fb8d7684f7f219ee36c610666958705959d8922be6cd29cbf9de80973f21e5",
+      "after": "06fb8d7684f7f219ee36c610666958705959d8922be6cd29cbf9de80973f21e5"
+    },
+    {
+      "path": ".prettierignore",
+      "status": "unchanged",
+      "before": "a94daf4db3cd2ca152bf9d8dd51ed70c76db2d7b81d613a1a6e5b4d6f87265b6",
+      "after": "a94daf4db3cd2ca152bf9d8dd51ed70c76db2d7b81d613a1a6e5b4d6f87265b6"
+    },
+    {
+      "path": ".prettierrc.json",
+      "status": "unchanged",
+      "before": "bd41c820e2cb4549a3420831f8442d5b76d0d84c88fb8d3f266d1aa3346bfa9d",
+      "after": "bd41c820e2cb4549a3420831f8442d5b76d0d84c88fb8d3f266d1aa3346bfa9d"
+    },
+    {
+      "path": "AGENTS.md",
+      "status": "modified",
+      "before": "a8b3e698de6fceb8b32c29d0e89c92b407d15005e5b9f513584cb7bd7a708b00",
+      "after": "9be7075b79f39b48b28081fb43d3a348599ffd1a50a12a2adaaf89884919b055"
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "before": "b2c4069f8e4f96180c5962e7906cb489a49aa984cff4aa0f52061b87bfed6000",
+      "after": "8ad2dd8b71820dec31d3aa8c17797afb20cfc4bd219675e395b86dba179f13b9"
+    },
+    {
+      "path": "apps/api/package.json",
+      "status": "modified",
+      "before": "faafd6c7ad5cd6740fdc5a784cb309cf6b43fe035fb394a5d1117379eab527ce",
+      "after": "b9ae885395ad0a9d18d27be72a49898c2be5c400e90e602180f8443625ed6496"
+    },
+    {
+      "path": "apps/api/src/app.ts",
+      "status": "modified",
+      "before": "9908aa0fdcd71369f542113fe0878c0affc91e556be23aab789730baf2ef6d41",
+      "after": "a5cfa521709a344a0f8b7d92a46226b9eb67fc4c9ab8b90879e68fa502ae531d"
+    },
+    {
+      "path": "apps/api/src/experiment/auth.ts",
+      "status": "unchanged",
+      "before": "1d670376d2c3ee12e7b3706ee8dc286b1c2ca5f7c8e289d6f1445a6a03868f20",
+      "after": "1d670376d2c3ee12e7b3706ee8dc286b1c2ca5f7c8e289d6f1445a6a03868f20"
+    },
+    {
+      "path": "apps/api/src/experiment/gateway.ts",
+      "status": "unchanged",
+      "before": "a7b5446d4f27f2872f61f388a93f93248664c5404482f55553ae279b2ecc9233",
+      "after": "a7b5446d4f27f2872f61f388a93f93248664c5404482f55553ae279b2ecc9233"
+    },
+    {
+      "path": "apps/api/src/main.ts",
+      "status": "unchanged",
+      "before": "74eeb48e7a6041a45f2e1b15739b9f96ff2323c6f6039e838fe44404e7931d99",
+      "after": "74eeb48e7a6041a45f2e1b15739b9f96ff2323c6f6039e838fe44404e7931d99"
+    },
+    {
+      "path": "apps/api/tsconfig.json",
+      "status": "unchanged",
+      "before": "ce663b7626fd587fe9dc3ffee5fdcd8501e7b8d40546ad5e55dc38a85d8c74b3",
+      "after": "ce663b7626fd587fe9dc3ffee5fdcd8501e7b8d40546ad5e55dc38a85d8c74b3"
+    },
+    {
+      "path": "apps/web/app/experiment/login.tsx",
+      "status": "unchanged",
+      "before": "1e647d0c537b9a5de263360687fd333bbd7520b3c5011ccbeafab4555df1a36d",
+      "after": "1e647d0c537b9a5de263360687fd333bbd7520b3c5011ccbeafab4555df1a36d"
+    },
+    {
+      "path": "apps/web/app/experiment/page.tsx",
+      "status": "unchanged",
+      "before": "ed31eb3ee69b05fb29eb59cb0f9cdbad69c5affd03fdebdb5284b763fd732356",
+      "after": "ed31eb3ee69b05fb29eb59cb0f9cdbad69c5affd03fdebdb5284b763fd732356"
+    },
+    {
+      "path": "apps/web/app/layout.tsx",
+      "status": "unchanged",
+      "before": "36fdc4f83f75cc82411b780778da8aefed96f4c38671ea52fc91ab2d87df8c64",
+      "after": "36fdc4f83f75cc82411b780778da8aefed96f4c38671ea52fc91ab2d87df8c64"
+    },
+    {
+      "path": "apps/web/app/page.tsx",
+      "status": "unchanged",
+      "before": "d3a48d4b985b41a0f189bbf34a6d3ecf3eac7c4cd7e264d38cb9a6fe2fb289f5",
+      "after": "d3a48d4b985b41a0f189bbf34a6d3ecf3eac7c4cd7e264d38cb9a6fe2fb289f5"
+    },
+    {
+      "path": "apps/web/app/status.tsx",
+      "status": "unchanged",
+      "before": "0f5924fe86f86b7693248ae5963687c29b67192d015d0372d209d27d273adb52",
+      "after": "0f5924fe86f86b7693248ae5963687c29b67192d015d0372d209d27d273adb52"
+    },
+    {
+      "path": "apps/web/next-env.d.ts",
+      "status": "unchanged",
+      "before": "1b59d4c6b83807db275d43f3cf2cc8e9323f465fab764eea091cc5becd5bad37",
+      "after": "1b59d4c6b83807db275d43f3cf2cc8e9323f465fab764eea091cc5becd5bad37"
+    },
+    {
+      "path": "apps/web/next.config.ts",
+      "status": "unchanged",
+      "before": "7553f90f130066a47f54ad5bd3acad88c210b8a46a91d3c27fdd4ef6a2cfbc70",
+      "after": "7553f90f130066a47f54ad5bd3acad88c210b8a46a91d3c27fdd4ef6a2cfbc70"
+    },
+    {
+      "path": "apps/web/package.json",
+      "status": "modified",
+      "before": "91c93c17ff35e4cbe6f74e6ab9096d9478a9b10344f7fd691250265f430121ac",
+      "after": "35d2b7f7f0673466958b5a4a3d0f86fa959eaa2f66e5ecb2046087552c19cf15"
+    },
+    {
+      "path": "apps/web/tsconfig.json",
+      "status": "unchanged",
+      "before": "3323cd1932972523d4465a5077ee30fb7479abd2b04ee08109005f7f5a695749",
+      "after": "3323cd1932972523d4465a5077ee30fb7479abd2b04ee08109005f7f5a695749"
+    },
+    {
+      "path": "apps/worker/package.json",
+      "status": "unchanged",
+      "before": "fca97e1551895d1413162a0ca46682b09b9ba19eec6cff224ab2d858880c8791",
+      "after": "fca97e1551895d1413162a0ca46682b09b9ba19eec6cff224ab2d858880c8791"
+    },
+    {
+      "path": "apps/worker/src/infrastructure.ts",
+      "status": "unchanged",
+      "before": "2920d93193b83e46339f781c5779581f814599a9e4c46121876f14fa5c78b76e",
+      "after": "2920d93193b83e46339f781c5779581f814599a9e4c46121876f14fa5c78b76e"
+    },
+    {
+      "path": "apps/worker/src/main.ts",
+      "status": "unchanged",
+      "before": "0b97b93ee18728422d8421a427d07e232138296b4e2f0751496fab8a97540fa9",
+      "after": "0b97b93ee18728422d8421a427d07e232138296b4e2f0751496fab8a97540fa9"
+    },
+    {
+      "path": "apps/worker/tsconfig.json",
+      "status": "unchanged",
+      "before": "ce663b7626fd587fe9dc3ffee5fdcd8501e7b8d40546ad5e55dc38a85d8c74b3",
+      "after": "ce663b7626fd587fe9dc3ffee5fdcd8501e7b8d40546ad5e55dc38a85d8c74b3"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "status": "modified",
+      "before": "53cd9798c1017705ad48193546ee1af87071c912297e2948f5436403f70098c3",
+      "after": "d1307351118c977a7124a127806a82e0402efc022c1ca9970478be93ec8a416e"
+    },
+    {
+      "path": "docs/DATA_MODEL.md",
+      "status": "modified",
+      "before": "3c6fd931fb80404b447ea4d640743ffa9b32a4ba397661a8078dca1a68825074",
+      "after": "cac530599771acad85245847d3b305515aa63397be18aaec56dea4979db14306"
+    },
+    {
+      "path": "docs/DEPENDENCY_VERSIONS.md",
+      "status": "unchanged",
+      "before": "17b27f2a417b9135fbb82ef42a76fdc8785370a9a097ca4a425ade7dc3929a7e",
+      "after": "17b27f2a417b9135fbb82ef42a76fdc8785370a9a097ca4a425ade7dc3929a7e"
+    },
+    {
+      "path": "docs/IMPLEMENTATION_PLAN.md",
+      "status": "modified",
+      "before": "213274b53e50ec0abb5c012030eefbfa0c0a1ae9ba8abf40ca6d54b8670f23d7",
+      "after": "042a9f8fcaf235948aaba20892f3080d214299176bd91cb738a01a9c0e417ddc"
+    },
+    {
+      "path": "docs/PHASE_1_REPORT.md",
+      "status": "unchanged",
+      "before": "c1dc1a22701c34b1d941150e12ff0255e4be0c953647fc773913e182cf373fea",
+      "after": "c1dc1a22701c34b1d941150e12ff0255e4be0c953647fc773913e182cf373fea"
+    },
+    {
+      "path": "docs/PRODUCT_SPEC.md",
+      "status": "unchanged",
+      "before": "f7ef1e95936cf35d523a728d448a9af5001b467ccb04732bd49d5a5cb243affd",
+      "after": "f7ef1e95936cf35d523a728d448a9af5001b467ccb04732bd49d5a5cb243affd"
+    },
+    {
+      "path": "docs/SECURITY.md",
+      "status": "modified",
+      "before": "642264c099114dfc2c2a8bfaf53bd7a03c65ea5e921c379cfea5aa5bb97155a6",
+      "after": "4b2a959bb3a84b36df0cb0943862b38f0ca7f28a1fe4f722e465b077a16e1cc4"
+    },
+    {
+      "path": "docs/TESTING.md",
+      "status": "modified",
+      "before": "cffe0ddc7f291c1f313c0ed80aa82e345bdcdec47e6ecc210144d1a249ffc2cf",
+      "after": "680a23d09dc51e0cad3798afdfc3e4a2c191fc8024524312128be492c812feb6"
+    },
+    {
+      "path": "docs/verification/phase1-files.txt",
+      "status": "unchanged",
+      "before": "872817c4d67dc6ae108228119e6d4ad13c46c2c22f09b49ef240a07eb391f20d",
+      "after": "872817c4d67dc6ae108228119e6d4ad13c46c2c22f09b49ef240a07eb391f20d"
+    },
+    {
+      "path": "docs/verification/phase1-initial-report.txt",
+      "status": "unchanged",
+      "before": "f571df34fc5aac69e228570b5dae179caa5840512d9b232bd449512b51c1ecd4",
+      "after": "f571df34fc5aac69e228570b5dae179caa5840512d9b232bd449512b51c1ecd4"
+    },
+    {
+      "path": "eslint.config.mjs",
+      "status": "unchanged",
+      "before": "adb1b941113fa15eb658018f9652e51f9340219933ddf9e3a1a36cf07435a1c2",
+      "after": "adb1b941113fa15eb658018f9652e51f9340219933ddf9e3a1a36cf07435a1c2"
+    },
+    {
+      "path": "infra/Dockerfile",
+      "status": "unchanged",
+      "before": "c3ade3670ff39635eff4955076dc1173202c4ddbc5dd8dc98bbec3a68340687d",
+      "after": "c3ade3670ff39635eff4955076dc1173202c4ddbc5dd8dc98bbec3a68340687d"
+    },
+    {
+      "path": "infra/README.md",
+      "status": "modified",
+      "before": "b4522538763ac76d24646690378a5d85a995c03c21746beb068c8aae4e796ae3",
+      "after": "ebaf8d2305dd99c15cd0c6d9bb0533073117151dd08007be3e250d874bdafa46"
+    },
+    {
+      "path": "infra/compose.yaml",
+      "status": "unchanged",
+      "before": "a58ae23e706061fc880aae0a2abcb6bf35be05a3ab8fb7dc63a0cf362adc291b",
+      "after": "a58ae23e706061fc880aae0a2abcb6bf35be05a3ab8fb7dc63a0cf362adc291b"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "before": "22be4222c9a6b4919c1b0da6367d841d89c5dfb18eff636cbbf676b0c019c978",
+      "after": "a0b872ea85616ed6da72a7da7606b560c63e36969826127f48b600642edb26ac"
+    },
+    {
+      "path": "packages/config/package.json",
+      "status": "unchanged",
+      "before": "331cdd3e497d754fd9b18aa8b48c637738b91fdd19515b4b47c4df240c7fbade",
+      "after": "331cdd3e497d754fd9b18aa8b48c637738b91fdd19515b4b47c4df240c7fbade"
+    },
+    {
+      "path": "packages/config/tsconfig.base.json",
+      "status": "unchanged",
+      "before": "b9e4fc3b7bf90da6594406f9114afa473eeef3656107a85f2e7e75b4847256ca",
+      "after": "b9e4fc3b7bf90da6594406f9114afa473eeef3656107a85f2e7e75b4847256ca"
+    },
+    {
+      "path": "packages/contracts/openapi.json",
+      "status": "modified",
+      "before": "977d77102e3fa1dae1be543d2fd868208c47f54f2586095a6ff19ca07db0d9e2",
+      "after": "4e182a135d6180d0b93789c09df402d173dc09a4ca4a847b95af1044991d9be9"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "status": "unchanged",
+      "before": "f8a377d00f461f23aec7deb48a5e10af4576fcb934c80cf6b278123f2533e3d9",
+      "after": "f8a377d00f461f23aec7deb48a5e10af4576fcb934c80cf6b278123f2533e3d9"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "status": "modified",
+      "before": "186925cf8305658784f322b740130c32acaa6058dac2b3865a392f88a569451f",
+      "after": "a60122599ba3e421f7b4abd040d2902ca33b51948a06aca6a9e6c7839cff1601"
+    },
+    {
+      "path": "packages/contracts/tsconfig.json",
+      "status": "unchanged",
+      "before": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098",
+      "after": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098"
+    },
+    {
+      "path": "packages/database/package.json",
+      "status": "unchanged",
+      "before": "37f2e2be374656cdfb6eaa6b9d568fbeaa22d8dfe42ac4f6a9d59133c6f62b76",
+      "after": "37f2e2be374656cdfb6eaa6b9d568fbeaa22d8dfe42ac4f6a9d59133c6f62b76"
+    },
+    {
+      "path": "packages/database/prisma.config.ts",
+      "status": "unchanged",
+      "before": "47d0a2edfb7bdd88d8c61943f8430659cfad3cdaa8bf275fb4a2a2e0df0ee860",
+      "after": "47d0a2edfb7bdd88d8c61943f8430659cfad3cdaa8bf275fb4a2a2e0df0ee860"
+    },
+    {
+      "path": "packages/database/prisma/experiment/schema.prisma",
+      "status": "unchanged",
+      "before": "323f03a79bb91b62f28b6d8c2dbce2d2b165a63fece62a620e9de2a5cd459520",
+      "after": "323f03a79bb91b62f28b6d8c2dbce2d2b165a63fece62a620e9de2a5cd459520"
+    },
+    {
+      "path": "packages/database/src/experiment-policy.ts",
+      "status": "unchanged",
+      "before": "eab5d84770a7264ce331d597111e11e8756b97c30672b83d2d3e89177fb8fddb",
+      "after": "eab5d84770a7264ce331d597111e11e8756b97c30672b83d2d3e89177fb8fddb"
+    },
+    {
+      "path": "packages/database/src/index.ts",
+      "status": "unchanged",
+      "before": "18201b745755896cdbc9e77cdbd35ea5e8b479c565cffdea161827ee542797dc",
+      "after": "18201b745755896cdbc9e77cdbd35ea5e8b479c565cffdea161827ee542797dc"
+    },
+    {
+      "path": "packages/database/tsconfig.json",
+      "status": "unchanged",
+      "before": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098",
+      "after": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098"
+    },
+    {
+      "path": "packages/server/package.json",
+      "status": "unchanged",
+      "before": "85a9ffc00fd5c8fc70a5f177326b861beaa951a93dc4d86c2337c0061bf855f4",
+      "after": "85a9ffc00fd5c8fc70a5f177326b861beaa951a93dc4d86c2337c0061bf855f4"
+    },
+    {
+      "path": "packages/server/src/index.ts",
+      "status": "unchanged",
+      "before": "45d4b9d2b3fedae3bd904b7b64ef42ab227a8d206ac5844776b564686d6d0065",
+      "after": "45d4b9d2b3fedae3bd904b7b64ef42ab227a8d206ac5844776b564686d6d0065"
+    },
+    {
+      "path": "packages/server/tsconfig.json",
+      "status": "unchanged",
+      "before": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098",
+      "after": "5951c71848ac0e187653a078e2d7cf9d923249b1859f60cb5a64a5bc180cb098"
+    },
+    {
+      "path": "playwright.config.ts",
+      "status": "unchanged",
+      "before": "f683b8688d41029ec57c3d3e4ed7f485878c4ba1363691e4ab87312be1697620",
+      "after": "f683b8688d41029ec57c3d3e4ed7f485878c4ba1363691e4ab87312be1697620"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "status": "modified",
+      "before": "8f91af259eed419cf60637e07a4b815fd9edd70385b7edfbd2a0767f3fbbaba7",
+      "after": "d3aad47d1bfb2b8b684dda3af06c5c6310a87aab76bc166100198d79ce574d80"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "status": "unchanged",
+      "before": "2b9a2c884bc3cbbb48e25cc892033b98a667072145dbfce49285d379abd07c92",
+      "after": "2b9a2c884bc3cbbb48e25cc892033b98a667072145dbfce49285d379abd07c92"
+    },
+    {
+      "path": "scripts/check-boundaries.mjs",
+      "status": "unchanged",
+      "before": "c459e193d44d0a71d5a9a32ea8c663cf30cfa87f0addf080f50444242f748396",
+      "after": "c459e193d44d0a71d5a9a32ea8c663cf30cfa87f0addf080f50444242f748396"
+    },
+    {
+      "path": "scripts/check-docs.mjs",
+      "status": "modified",
+      "before": "06da861c9e1e5db64b5b82d27a9a8a4f8a28e8f679affcf897624f57dc858f11",
+      "after": "d2f8a1bb0c58694ee628de0c3b38111b9474ac2e3396a9b8952eeb727a9e8972"
+    },
+    {
+      "path": "scripts/check-env.mjs",
+      "status": "unchanged",
+      "before": "bda6bbdb169cb86c7c47e77555fc64ed1a8a0a42d91fb697e6a7cf98af3cb17c",
+      "after": "bda6bbdb169cb86c7c47e77555fc64ed1a8a0a42d91fb697e6a7cf98af3cb17c"
+    },
+    {
+      "path": "scripts/check-infra.mjs",
+      "status": "unchanged",
+      "before": "6bdcb476fee2b3528f4d4a1435308014f4a2b416208a00959fae9b9db045dab6",
+      "after": "6bdcb476fee2b3528f4d4a1435308014f4a2b416208a00959fae9b9db045dab6"
+    },
+    {
+      "path": "scripts/check-runtime.mjs",
+      "status": "unchanged",
+      "before": "41af632f1888561497acf6b02415f815472a7473c8ba877ac8894b6021ee6660",
+      "after": "41af632f1888561497acf6b02415f815472a7473c8ba877ac8894b6021ee6660"
+    },
+    {
+      "path": "scripts/dev.mjs",
+      "status": "modified",
+      "before": "c9b763da2e8fc202c06e1b85e652a980fbe99338924f43464ddf03d74479280f",
+      "after": "dc3e62ea5af89a56a70523db330837a776af636ab0cc60a45a18ee7332cd1830"
+    },
+    {
+      "path": "scripts/http.mjs",
+      "status": "unchanged",
+      "before": "6da9bfbabbf1c70e66b699abeb10bd6b1ef5585138f8d28715b9daadca8591cd",
+      "after": "6da9bfbabbf1c70e66b699abeb10bd6b1ef5585138f8d28715b9daadca8591cd"
+    },
+    {
+      "path": "scripts/openapi.mjs",
+      "status": "modified",
+      "before": "d2d007e09fd70ad9382e1c8a05464cfa524e1462b8f7253da56704fa5704b15d",
+      "after": "5d27225a78b31188dcd185a220289348cef97ac7a776ae028c6ef8f48b3d3d50"
+    },
+    {
+      "path": "scripts/portable-postgres.mjs",
+      "status": "unchanged",
+      "before": "188f59c7537d414e541dc6bff23c0a276680288272b975fff64dd6967ac16ab2",
+      "after": "188f59c7537d414e541dc6bff23c0a276680288272b975fff64dd6967ac16ab2"
+    },
+    {
+      "path": "scripts/prepare-experiment.mjs",
+      "status": "unchanged",
+      "before": "22fcd30a7e7a18b0302b80e0693a79f867ee49b5a7b87875c4faf4da656c1f11",
+      "after": "22fcd30a7e7a18b0302b80e0693a79f867ee49b5a7b87875c4faf4da656c1f11"
+    },
+    {
+      "path": "scripts/proxy.mjs",
+      "status": "unchanged",
+      "before": "23cf6d0c19c75e850ab9d4d0e929afed167e5c6d1d5f018c1a9c73cdbaa89bf0",
+      "after": "23cf6d0c19c75e850ab9d4d0e929afed167e5c6d1d5f018c1a9c73cdbaa89bf0"
+    },
+    {
+      "path": "scripts/setup-local.mjs",
+      "status": "unchanged",
+      "before": "d4e0ffeb10e009fd8f7bcb6b3b45af9cd4c56c438e4bd26407f68dfaf6f5f04b",
+      "after": "d4e0ffeb10e009fd8f7bcb6b3b45af9cd4c56c438e4bd26407f68dfaf6f5f04b"
+    },
+    {
+      "path": "scripts/stop-experiment.mjs",
+      "status": "unchanged",
+      "before": "0150d36a26f3d848a9235423d23202c79960df9346d0f443fe8904e217194f06",
+      "after": "0150d36a26f3d848a9235423d23202c79960df9346d0f443fe8904e217194f06"
+    },
+    {
+      "path": "scripts/stop-local.mjs",
+      "status": "unchanged",
+      "before": "822fe9987cd927dd62800dbf741517ecc813aafeb4d521ab9f3b3c6df43a956d",
+      "after": "822fe9987cd927dd62800dbf741517ecc813aafeb4d521ab9f3b3c6df43a956d"
+    },
+    {
+      "path": "tests/e2e/foundation.spec.ts",
+      "status": "unchanged",
+      "before": "92169656eb0b1eb7b7ee71d35ad4876081eb28dd09794728a2661ca1b9cce94c",
+      "after": "92169656eb0b1eb7b7ee71d35ad4876081eb28dd09794728a2661ca1b9cce94c"
+    },
+    {
+      "path": "tests/helpers/experiment.mjs",
+      "status": "unchanged",
+      "before": "e779cb6caa33256512540c5136d480225c2b32aadee7d156cb54f7928922f332",
+      "after": "e779cb6caa33256512540c5136d480225c2b32aadee7d156cb54f7928922f332"
+    },
+    {
+      "path": "tests/integration/compatibility.test.mjs",
+      "status": "unchanged",
+      "before": "5252392f9f8fb59cd591b3a15893edddceb8205fd016fd5f309426019d5a869d",
+      "after": "5252392f9f8fb59cd591b3a15893edddceb8205fd016fd5f309426019d5a869d"
+    },
+    {
+      "path": "tests/integration/security-gaps.test.mjs",
+      "status": "unchanged",
+      "before": "2250256048065ffebc7a315df009afbaf04514e5c6158fd531b0f6ef583989a7",
+      "after": "2250256048065ffebc7a315df009afbaf04514e5c6158fd531b0f6ef583989a7"
+    },
+    {
+      "path": "tests/unit/foundation.test.mjs",
+      "status": "unchanged",
+      "before": "c629c3ea6e8b9ea59ae6dc489dbfe97dfd186660089179aa262e1f1d97a9e3c7",
+      "after": "c629c3ea6e8b9ea59ae6dc489dbfe97dfd186660089179aa262e1f1d97a9e3c7"
+    },
+    {
+      "path": "apps/api/src/communications-gateway.ts",
+      "status": "added",
+      "after": "77e5f0ef730d09464d903bde9cf846e4adddc6c325b643923fa80ee0f130b59c"
+    },
+    {
+      "path": "apps/web/app/notifications.tsx",
+      "status": "added",
+      "after": "337cfc1c26e39f007813bd5716b1a073d1f2a760376e9570c10c8e9816591c3a"
+    },
+    {
+      "path": "docs/PHASE_6_REPORT.md",
+      "status": "added",
+      "after": "a57c0f24ee2df50b1ffcb5cc4aaeff5e300d45decc707490a6cf311eb18964b9"
+    },
+    {
+      "path": "docs/verification/phase6-final.txt",
+      "status": "added",
+      "after": "9abe0510ce546e87c6dab9461f3f8180d6599f9a44a3b13219bda959f08c852b"
+    },
+    {
+      "path": "packages/contracts/src/phase6.ts",
+      "status": "added",
+      "after": "7bbb435d7d035f3ecf9a8b0c768587c28afe089f92ea5c2598ce602101394515"
+    },
+    {
+      "path": "packages/database/prisma/product/0028-communications.sql",
+      "status": "added",
+      "after": "45fde7f386ed8b23a793ffe1acc362e80a615b9c02c10d6fd953344da019cf46"
+    },
+    {
+      "path": "packages/database/prisma/product/0029-assignment-recipient.sql",
+      "status": "added",
+      "after": "5645e4d189c62b8ea6707c24cbd51c3ff10a55c418a4ca6407bf2a41d7e91084"
+    },
+    {
+      "path": "packages/database/prisma/product/0030-notification-project-binding.sql",
+      "status": "added",
+      "after": "5f7d8551f487d78f438bbc6b54b0f7f25fe031bc3d4ec39042aabe05c085d05c"
+    },
+    {
+      "path": "packages/database/prisma/product/0031-delivery-visibility.sql",
+      "status": "added",
+      "after": "93aecb3a7dad2b7651cb641d38804919f69462b108871511d6b3c3976e4c421e"
+    },
+    {
+      "path": "packages/database/prisma/product/0032-notification-envelope-integrity.sql",
+      "status": "added",
+      "after": "c24de00843b6c603675debf241046be1d3e9ac22ef250b19937917bf8236f7a0"
+    },
+    {
+      "path": "packages/database/prisma/product/0033-event-audit-correlation.sql",
+      "status": "added",
+      "after": "29a3bef4ddb42c306d4422e7bd33b787826f69721283cd402cc4883255b400a1"
+    },
+    {
+      "path": "packages/database/prisma/product/0034-worker-audit-context.sql",
+      "status": "added",
+      "after": "3f18e2e9fb47deccd6336fc9963b208cbc53b9cff2ee3ba975ccfbf670d47c5e"
+    },
+    {
+      "path": "packages/server/src/notifications.ts",
+      "status": "added",
+      "after": "81923b95a0bef4720d44077754d28491d52b7f55760bce70ebea2d8a1d06eff7"
+    },
+    {
+      "path": "scripts/event-delivery-status.mjs",
+      "status": "added",
+      "after": "98a5fb5f4f4daa98912e016e0165ce33e16354abced445cf6a45e9f64e7eacc4"
+    },
+    {
+      "path": "tests/e2e/phase6.spec.ts",
+      "status": "added",
+      "after": "4e70feb061110b1cb90bac0fe6dc844c972649509cd20e25beb71cae7d653fab"
+    },
+    {
+      "path": "tests/phase6/notifications.test.mjs",
+      "status": "added",
+      "after": "60a48eb7f425618df5d87ce02f07e9470901bfddbef35a1d3cad958e21755d39"
+    },
+    {
+      "path": "tests/phase6/realtime.test.mjs",
+      "status": "added",
+      "after": "9362b136e2bdf1a4a06c56f956ac9416436620f47cc4c119a4d60c864639c910"
+    },
+    {
+      "path": "tests/phase6/reliability.test.mjs",
+      "status": "added",
+      "after": "63f2e56c1acdffec05d71a5098349d021a55b27caaec753e7743aa869eb488c7"
+    },
+    {
+      "path": "tests/phase6/worker-child.mjs",
+      "status": "added",
+      "after": "f8b3ec9d096afa6f3f4819f383a6fd4c133c518fd6cb24717dab45ef239c51c2"
+    },
+    {
+      "path": "tests/unit/phase6.test.mjs",
+      "status": "added",
+      "after": "c812ed0fae65e209de6847e0e8312d73e552b54dc70dba1e4051f5dc3b89efb7"
+    }
+  ]
+}

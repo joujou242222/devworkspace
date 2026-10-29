@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.local/
+.env
+.env.local
+.env.*.local
+**/dist/
+**/.next/
+**/generated/
+**/generated-product/
+**/*.tsbuildinfo
+coverage/
+test-results/
+playwright-report/
+.playwright-cli/
+
+*.zip

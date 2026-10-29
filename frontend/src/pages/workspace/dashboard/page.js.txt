@@ -1,0 +1,225 @@
+var $ = function(i) { return document.getElementById(i); };
+var H = window.__DW_HELPERS__ || {};
+var api = window.__API__;
+var auth = window.__AUTH__;
+var esc = H.esc || function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+
+var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatMilestoneDate(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+}
+
+// Toggle sidebar
+var tog = $('tog');
+if (tog) tog.onclick = function() { $('app').classList.toggle('min'); };
+
+// Load shared header (notifications drawer, unread dot, user avatar)
+if (H.loadHeader) H.loadHeader();
+
+var activeOrgId = auth.activeOrgId;
+
+async function loadDashboard() {
+  if (!activeOrgId) return;
+
+  // Immediate top header greeting update
+  var topH1 = document.querySelector('.top h1');
+  if (topH1 && auth.user) {
+    var userName = (auth.user.name || '').split(' ')[0] || 'there';
+    var hour = new Date().getHours();
+    var timeOfDay = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    topH1.textContent = timeOfDay + ', ' + userName;
+  }
+
+  var clientsMap = {};
+  var projects = [];
+  var myTasks = [];
+  var openReviews = [];
+  var notifications = [];
+
+  // 1. Fetch clients for name resolution (single request)
+  try {
+    var cRes = await (H.fetchAllPages ? H.fetchAllPages('/organizations/' + activeOrgId + '/clients') : api.get('/organizations/' + activeOrgId + '/clients?limit=100'));
+    (cRes.items || []).forEach(function(c) {
+      clientsMap[c.id] = c.name;
+    });
+  } catch (_) {}
+
+  // 2. Fetch projects from /dashboard
+  try {
+    var pRes = await api.get('/organizations/' + activeOrgId + '/dashboard?limit=10');
+    projects = pRes.items || [];
+  } catch (err) {
+    console.error('Failed to load dashboard projects', err);
+  }
+
+  // 3. Fetch user assigned tasks from /my-tasks
+  try {
+    var tRes = await api.get('/organizations/' + activeOrgId + '/my-tasks?limit=5');
+    myTasks = tRes.items || [];
+  } catch (err) {
+    console.error('Failed to load my-tasks', err);
+  }
+
+  // 4. Fetch open reviews from /reviews
+  try {
+    var rRes = await api.get('/organizations/' + activeOrgId + '/reviews?status=OPEN&limit=5');
+    openReviews = rRes.items || [];
+  } catch (err) {
+    console.error('Failed to load reviews', err);
+  }
+
+  // 5. Fetch recent activity from /notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/notifications?limit=5');
+    notifications = nRes.items || [];
+  } catch (err) {
+    console.error('Failed to load activity', err);
+  }
+
+  // --- RENDER WIDGETS ---
+
+  var topP = document.querySelector('.top p');
+  var openReviewsCount = openReviews.length;
+  var tasksCount = myTasks.length;
+  if (topP) {
+    topP.textContent = tasksCount + ' task' + (tasksCount === 1 ? '' : 's') + ' on your list and ' +
+      openReviewsCount + ' review' + (openReviewsCount === 1 ? '' : 's') + ' waiting on a decision.';
+  }
+
+  // Your projects widget (.pj)
+  var projectContainers = document.querySelectorAll('.pj');
+  var pContainerParent = projectContainers.length > 0 ? projectContainers[0].parentElement : null;
+  if (pContainerParent) {
+    // Remove existing static mock items
+    pContainerParent.querySelectorAll('.pj').forEach(function(el) { el.remove(); });
+
+    if (projects.length === 0) {
+      var emptyPj = document.createElement('div');
+      emptyPj.className = 'pj';
+      emptyPj.innerHTML = '<div style="color:var(--muted);font-size:14px">No active projects yet. <a class="lnk" href="/workspace/projects">Start a project &rarr;</a></div>';
+      pContainerParent.appendChild(emptyPj);
+    } else {
+      projects.slice(0, 5).forEach(function(p) {
+        var cName = clientsMap[p.client_id] || '—';
+        var pct = p.summary && p.summary.total ? Math.round((p.summary.done / p.summary.total) * 100) : 0;
+        var div = document.createElement('div');
+        div.className = 'pj';
+        div.innerHTML = '<div><b><a class="lnk" href="/project/project?id=' + esc(p.id) + '" style="color:inherit;text-decoration:none">' + esc(p.name) + '</a></b>' +
+          '<small>' + esc(cName) + ' · ' + pct + '%</small></div>' +
+          '<div class="bar"><i style="width:' + pct + '%"></i></div>';
+        pContainerParent.appendChild(div);
+      });
+    }
+  }
+
+  // Your tasks widget (.tk)
+  var taskContainers = document.querySelectorAll('.tk');
+  var tContainerParent = taskContainers.length > 0 ? taskContainers[0].parentElement : null;
+  if (tContainerParent) {
+    taskContainers.forEach(function(el) { el.remove(); });
+
+    // Build map of project_id -> project_name
+    var pNameMap = {};
+    projects.forEach(function(p) { pNameMap[p.id] = p.name; });
+
+    if (myTasks.length === 0) {
+      var emptyTk = document.createElement('div');
+      emptyTk.className = 'tk';
+      emptyTk.innerHTML = '<span style="color:var(--muted);font-size:14px">No tasks assigned to you right now.</span>';
+      tContainerParent.insertBefore(emptyTk, document.querySelector('h2[style*="margin-top"]') || null);
+    } else {
+      var refNode = document.querySelector('h2[style*="margin-top"]') || null;
+      myTasks.forEach(function(t) {
+        var statusUI = H.toUITaskStatus(t.status);
+        var isGo = t.status === 'IN_PROGRESS';
+        var dueHtml = t.due_at ? H.formatDaysDue(t.due_at) : '—';
+        var projName = pNameMap[t.project_id] || 'Project';
+        var div = document.createElement('div');
+        div.className = 'tk';
+        div.innerHTML = '<b>' + esc(t.title) + '</b>' +
+          '<span class="pill' + (isGo ? ' go' : '') + '">' + esc(statusUI) + '</span>' +
+          '<span class="due">' + dueHtml + '</span>' +
+          '<small>' + esc(projName) + '</small>';
+        tContainerParent.insertBefore(div, refNode);
+      });
+    }
+  }
+
+  // Waiting on a decision widget (.rev)
+  var revSec = document.querySelector('section.rev');
+  if (revSec) {
+    var revCountEl = revSec.querySelector('.n');
+    if (revCountEl) revCountEl.textContent = String(openReviews.length);
+
+    var revUl = revSec.querySelector('ul');
+    if (revUl) {
+      if (openReviews.length === 0) {
+        revUl.innerHTML = '<li style="color:var(--muted);font-size:13px">No reviews currently awaiting decision.</li>';
+      } else {
+        revUl.innerHTML = openReviews.map(function(r) {
+          var title = r.title || r.name || 'Deliverable Review';
+          var vNum = r.version_number ? 'Version ' + r.version_number : 'Latest';
+          return '<li>' + esc(title) + '<small>' + esc(vNum) + ' · Deciding</small></li>';
+        }).join('');
+      }
+    }
+  }
+
+  // Latest activity widget (.act)
+  var actUl = document.querySelector('ul.act');
+  if (actUl) {
+    if (notifications.length === 0) {
+      actUl.innerHTML = '<li style="color:var(--muted);font-size:13px">No recent activity recorded yet.</li>';
+    } else {
+      actUl.innerHTML = notifications.map(function(n) {
+        var timeStr = H.formatRelativeTime(n.occurred_at);
+        return '<li><time>' + esc(timeStr) + '</time>' + esc(n.summary) + '</li>';
+      }).join('');
+    }
+  }
+
+  // Upcoming milestones widget (.ms)
+  var msContainer = document.querySelector('.ms');
+  if (msContainer) {
+    if (projects.length === 0) {
+      msContainer.innerHTML = '<div><span>No upcoming milestones</span></div>';
+    } else {
+      var topProjects = projects.slice(0, 5);
+      var milestonePromises = topProjects.map(function(p) {
+        return api.get('/organizations/' + activeOrgId + '/projects/' + p.id + '/milestones?status=OPEN&limit=10');
+      });
+      var results = await Promise.allSettled(milestonePromises);
+      var allFailed = results.length > 0 && results.every(function(r) { return r.status === 'rejected'; });
+      if (allFailed) {
+        msContainer.innerHTML = '<div><span>Failed to load milestones.</span></div>';
+      } else {
+        var allMilestones = [];
+        results.forEach(function(r) {
+          if (r.status === 'fulfilled' && r.value && Array.isArray(r.value.items)) {
+            allMilestones = allMilestones.concat(r.value.items);
+          }
+        });
+        allMilestones.sort(function(a, b) {
+          if (!a.due_at) return 1;
+          if (!b.due_at) return -1;
+          return a.due_at.localeCompare(b.due_at);
+        });
+
+        if (allMilestones.length === 0) {
+          msContainer.innerHTML = '<div><span>No upcoming milestones</span></div>';
+        } else {
+          var displayMilestones = allMilestones.slice(0, 4);
+          msContainer.innerHTML = displayMilestones.map(function(m) {
+            return '<div><b>' + esc(m.title) + '</b><span>' + esc(formatMilestoneDate(m.due_at)) + '</span></div>';
+          }).join('');
+        }
+      }
+    }
+  }
+}
+
+loadDashboard();

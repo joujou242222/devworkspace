@@ -1,0 +1,175 @@
+var $ = function(i) { return document.getElementById(i); };
+var api = window.api || window.__API__;
+var auth = window.auth || window.__AUTH__;
+var H = window.helpers || window.__DW_HELPERS__;
+var esc = H && H.esc ? H.esc : function(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
+var activeOrgId = null;
+var activePrincipalId = null;
+var clientPrincipals = [];
+var currentProjects = [];
+var openReviewsMap = {};
+var notifications = [];
+
+function updateUserInfo(user) {
+  if (!user) return;
+  var uname = $('uname');
+  var uav = $('uav');
+  var name = user.name || user.email || 'Client';
+  if (uname) uname.textContent = name.split(' ')[0];
+  if (uav) {
+    var parts = name.split(' ').filter(Boolean);
+    var initials = parts.length > 1 ? (parts[0][0] + parts[1][0]) : name.slice(0, 2);
+    uav.textContent = initials.toUpperCase();
+  }
+}
+
+function renderNotifications() {
+  var bd = $('bd');
+  var dl = $('dl');
+  var hasUnread = notifications.some(function(n) { return !n.read_at; });
+  if (bd) bd.style.display = hasUnread ? '' : 'none';
+  if (dl) {
+    if (notifications.length === 0) {
+      dl.innerHTML = '<li class="empty"><small>No notifications</small></li>';
+    } else {
+      dl.innerHTML = notifications.map(function(n) {
+        var dateStr = n.created_at ? (H.formatDate ? H.formatDate(n.created_at) : n.created_at.slice(0, 10)) : '';
+        return '<li class="' + (n.read_at ? '' : 'u') + '"><b>' + esc(n.title || n.summary || 'Update') + '</b><small>' + esc(dateStr) + '</small></li>';
+      }).join('');
+    }
+  }
+}
+
+function renderProjects() {
+  var mn = $('mn');
+  if (!mn) return;
+
+  var wsSelect = $('ws');
+  var currentOrgName = (wsSelect && wsSelect.options[wsSelect.selectedIndex]) ? wsSelect.options[wsSelect.selectedIndex].text : 'this workspace';
+
+  if (currentProjects.length === 0) {
+    mn.innerHTML = '<h1>Your projects</h1><p class="sub">Projects ' + esc(currentOrgName) + ' has shared with you.</p>' +
+      '<p class="empty" id="em"><b>No projects yet</b>You haven’t been given access to a project. Ask your contact at ' + esc(currentOrgName) + '.</p>';
+    return;
+  }
+
+  var cardsHtml = currentProjects.map(function(p) {
+    var hasOpenReview = !!openReviewsMap[p.id];
+    var statusTag = hasOpenReview
+      ? '<span class="tag">Waiting for your decision</span>'
+      : '<small style="color:var(--muted)">Nothing needed from you</small>';
+
+    return '<a href="/portal/portal-project?id=' + encodeURIComponent(p.id) + '" class="post" style="display:block;text-decoration:none" data-p="' + esc(p.id) + '">' +
+      '<small style="color:var(--muted)">' + esc(currentOrgName) + ' · ' + esc(p.status) + '</small>' +
+      '<h3>' + esc(p.name) + '</h3>' +
+      statusTag +
+      '</a>';
+  }).join('');
+
+  mn.innerHTML = '<h1>Your projects</h1><p class="sub">Projects ' + esc(currentOrgName) + ' has shared with you.</p>' + cardsHtml;
+}
+
+async function loadData() {
+  if (!activeOrgId) return;
+
+  // 1. Fetch portal projects
+  try {
+    var pRes = await api.get('/organizations/' + activeOrgId + '/portal');
+    currentProjects = pRes.items || (Array.isArray(pRes) ? pRes : []);
+  } catch (err) {
+    console.error('Failed to load portal projects:', err);
+    currentProjects = [];
+  }
+
+  // 2. Fetch open reviews to indicate "Waiting for your decision"
+  try {
+    var rRes = await api.get('/organizations/' + activeOrgId + '/portal/reviews?status=OPEN&limit=100');
+    var rItems = rRes.items || (Array.isArray(rRes) ? rRes : []);
+    openReviewsMap = {};
+    rItems.forEach(function(r) {
+      openReviewsMap[r.project_id] = r;
+    });
+  } catch (_) {}
+
+  // 3. Fetch notifications
+  try {
+    var nRes = await api.get('/organizations/' + activeOrgId + '/portal/notifications?limit=8');
+    notifications = nRes.items || (Array.isArray(nRes) ? nRes : []);
+    renderNotifications();
+  } catch (_) {}
+
+  renderProjects();
+}
+
+async function init() {
+  var session = await auth.init();
+  if (!session || !session.authenticated) {
+    window.location.href = '/login';
+    return;
+  }
+
+  updateUserInfo(session.user);
+
+  clientPrincipals = session.clientPrincipals || [];
+
+  // Populate workspace selector #ws
+  var ws = $('ws');
+  if (ws && clientPrincipals.length > 0) {
+    ws.innerHTML = clientPrincipals.map(function(cp) {
+      return '<option value="' + esc(cp.id) + '" data-org="' + esc(cp.organizationId) + '">' + esc(cp.name || 'Workspace') + '</option>';
+    }).join('');
+
+    // Select active principal
+    activePrincipalId = auth.getActivePrincipalId();
+    var found = clientPrincipals.find(function(cp) { return cp.id === activePrincipalId; });
+    if (!found) {
+      found = clientPrincipals[0];
+      auth.setActivePrincipal(found.id, found.organizationId);
+    }
+    activePrincipalId = found.id;
+    activeOrgId = found.organizationId;
+    ws.value = activePrincipalId;
+
+    ws.onchange = function() {
+      var selectedOption = ws.options[ws.selectedIndex];
+      var targetPrincipalId = ws.value;
+      var targetOrgId = selectedOption ? selectedOption.getAttribute('data-org') : null;
+      auth.setActivePrincipal(targetPrincipalId, targetOrgId);
+      activePrincipalId = targetPrincipalId;
+      activeOrgId = targetOrgId;
+      loadData();
+    };
+  } else {
+    activePrincipalId = auth.getActivePrincipalId();
+    activeOrgId = auth.getActiveOrgId();
+  }
+
+  // Wire drawer
+  var bell = $('bell');
+  var dr = $('dr');
+  if (bell && dr) {
+    bell.onclick = function() {
+      dr.hidden = !dr.hidden;
+      bell.setAttribute('aria-expanded', String(!dr.hidden));
+    };
+    document.addEventListener('click', function(e) {
+      if (!dr.hidden && !e.target.closest('#dr,#bell')) {
+        dr.hidden = true;
+        bell.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  await loadData();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
