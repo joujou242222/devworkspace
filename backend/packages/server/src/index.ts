@@ -1,7 +1,7 @@
 import { z } from 'zod';
 const common = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  APP_ORIGIN: z.literal('https://localhost:8443').default('https://localhost:8443'),
+  APP_ORIGIN: z.string().url().default('https://localhost:8443'),
   BIND_HOST: z.enum(['127.0.0.1', '0.0.0.0']).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1024).max(65535).default(3001),
   EXPERIMENT_AUTH_ENABLED: z.enum(['true', 'false']).default('false'),

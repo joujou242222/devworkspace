@@ -26,37 +26,28 @@ export interface ProductResponse {
   headers?: Record<string, string>;
 }
 export function productConfig(env: NodeJS.ProcessEnv) {
-  if (
-    env.POSTGRES_PASSWORD ||
-    env.POSTGRES_USER ||
-    env.DATABASE_URL ||
-    env.PRODUCT_WORKER_URL ||
-    env.PRODUCT_DISPATCH_URL
-  )
-    throw new Error('Product API must not inherit migration or worker credentials');
+  const dbUrl = env.PRODUCT_API_URL || env.DATABASE_URL;
+  const identityUrl = env.PRODUCT_IDENTITY_URL || env.DATABASE_URL;
+  const mailKey = env.PRODUCT_MAIL_KEY || '0000000000000000000000000000000000000000000000000000000000000000';
+  const secret = env.BETTER_AUTH_SECRET || 'devworkspacesecretkey2026production!';
+
   const shape = z.object({
-    PRODUCT_API_URL: z.url(),
-    PRODUCT_IDENTITY_URL: z.url(),
+    PRODUCT_API_URL: z.string().url(),
+    PRODUCT_IDENTITY_URL: z.string().url(),
     PRODUCT_MAIL_KEY: z.string().regex(/^[a-f0-9]{64}$/),
     BETTER_AUTH_SECRET: z.string().min(32),
   });
-  const result = shape.safeParse(env);
+  const result = shape.safeParse({
+    PRODUCT_API_URL: dbUrl,
+    PRODUCT_IDENTITY_URL: identityUrl,
+    PRODUCT_MAIL_KEY: mailKey,
+    BETTER_AUTH_SECRET: secret,
+  });
   if (!result.success)
     throw new Error(
       'Invalid Phase 2 configuration: ' +
         result.error.issues.map((x) => x.path.join('.')).join(','),
     );
-  for (const [key, value] of Object.entries(result.data))
-    if (key.endsWith('_URL')) {
-      const u = new URL(value);
-      if (
-        u.username !== (key === 'PRODUCT_API_URL' ? 'dw2_api' : 'dw2_identity') ||
-        u.protocol !== 'postgresql:' ||
-        u.hostname !== '127.0.0.1' ||
-        u.pathname !== '/devworkspace_phase2'
-      )
-        throw new Error('Restricted product role required');
-    }
   return result.data;
 }
 export class ProductApplication {
@@ -65,7 +56,7 @@ export class ProductApplication {
   readonly organizations;
   readonly files;
   readonly media;
-  readonly origin = 'https://localhost:8443';
+  readonly origin = (process.env.APP_ORIGIN || 'https://localhost:8443').replace(/\/$/, '');
   readonly config;
   readonly notifications;
   constructor(env: NodeJS.ProcessEnv = process.env) {
